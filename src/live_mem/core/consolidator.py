@@ -76,18 +76,22 @@ class ConsolidatorService:
         self._temperature = settings.llmaas_temperature
         self._max_notes = settings.consolidation_max_notes
 
-    async def consolidate(self, space_id: str) -> dict:
+    async def consolidate(self, space_id: str, agent: str = "") -> dict:
         """
         Pipeline complet de consolidation pour un espace.
 
+        IMPORTANT : Seules les notes de l'agent appelant sont consolidées.
+        Les notes des autres agents restent dans live/ en attente.
+
         Étapes :
-            1. Collecter les inputs (rules, synthesis, notes, bank)
+            1. Collecter les inputs (rules, synthesis, notes de l'agent, bank)
             2. Construire le prompt LLM
             3. Appeler le LLM
-            4. Écrire les résultats (bank, synthesis, supprimer notes)
+            4. Écrire les résultats (bank, synthesis, supprimer notes de l'agent)
 
         Args:
             space_id: Identifiant de l'espace à consolider
+            agent: Nom de l'agent appelant (filtre les notes à consolider)
 
         Returns:
             Métriques de consolidation ou erreur
@@ -96,7 +100,7 @@ class ConsolidatorService:
         storage = get_storage()
 
         # ── Étape 1 : Collecter les inputs ────────────────
-        inputs = await self._collect_inputs(space_id)
+        inputs = await self._collect_inputs(space_id, agent=agent)
         if inputs.get("status") == "error":
             return inputs
 
@@ -134,9 +138,12 @@ class ConsolidatorService:
         write_result["duration_seconds"] = round(time.monotonic() - t0, 1)
         return write_result
 
-    async def _collect_inputs(self, space_id: str) -> dict:
+    async def _collect_inputs(self, space_id: str, agent: str = "") -> dict:
         """
-        Étape 1 : Lire les rules, synthèse, notes live et bank depuis S3.
+        Étape 1 : Lire les rules, synthèse, notes de l'agent et bank depuis S3.
+
+        Si agent est fourni, seules les notes de cet agent sont collectées.
+        Les notes des autres agents restent dans live/.
 
         Returns:
             Dict avec rules, synthesis, notes, notes_keys, bank_files
@@ -154,10 +161,19 @@ class ConsolidatorService:
         # Lire la synthèse précédente (peut ne pas exister)
         synthesis = await storage.get(f"{space_id}/_synthesis.md")
 
-        # Lire TOUTES les notes live
+        # Lire les notes live
         notes_raw = await storage.list_and_get(f"{space_id}/live/")
         # Trier par clé (= par timestamp, chronologique)
         notes_raw.sort(key=lambda n: n["key"])
+
+        # Filtrer par agent : chaque agent ne consolide que SES notes
+        # Le nom de l'agent est dans le nom de fichier : {ts}_{agent}_{cat}_{uuid}.md
+        if agent:
+            notes_raw = [
+                n for n in notes_raw
+                if f"_{agent}_" in n["key"].split("/")[-1]
+                or n["key"].split("/")[-1].startswith(f"{agent}_")
+            ]
 
         # Limiter au max_notes (les plus anciennes d'abord)
         notes_remaining = 0

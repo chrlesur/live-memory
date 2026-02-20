@@ -201,7 +201,7 @@ def register(mcp: FastMCP) -> int:
         Returns:
             Métriques de consolidation (notes traitées, fichiers MAJ, tokens)
         """
-        from ..auth.context import check_access, check_write_permission
+        from ..auth.context import check_access, check_write_permission, get_current_agent_name
         from ..core.locks import get_lock_manager
         from ..core.consolidator import get_consolidator
 
@@ -215,6 +215,9 @@ def register(mcp: FastMCP) -> int:
             if write_err:
                 return write_err
 
+            # Identifier l'agent appelant (chaque agent ne consolide que ses notes)
+            caller = get_current_agent_name()
+
             # Vérifier le lock de consolidation
             lock = get_lock_manager().consolidation(space_id)
             if lock.locked():
@@ -226,9 +229,9 @@ def register(mcp: FastMCP) -> int:
                     ),
                 }
 
-            # Exécuter la consolidation sous lock
+            # Exécuter la consolidation sous lock (filtrée par agent)
             async with lock:
-                return await get_consolidator().consolidate(space_id)
+                return await get_consolidator().consolidate(space_id, agent=caller)
 
         except Exception as e:
             return {"status": "error", "message": str(e)}
