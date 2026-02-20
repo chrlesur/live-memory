@@ -1,0 +1,202 @@
+# =============================================================================
+# Coraza WAF + Caddy — Configuration générique pour serveur MCP
+# =============================================================================
+#
+# Ce Caddyfile configure :
+# 1. Coraza WAF avec OWASP CRS (protection OWASP Top 10)
+# 2. Reverse proxy vers le service MCP (port 8002)
+# 3. Headers de sécurité (CSP, HSTS, X-Frame-Options, etc.)
+# 4. Gestion SSE (Server-Sent Events) pour le protocole MCP
+# 5. Rate limiting par IP
+# 6. TLS automatique via Let's Encrypt (si domaine configuré)
+#
+# =============================================================================
+#
+# ARCHITECTURE DES ROUTES :
+#
+#   /sse*        → Reverse Proxy DIRECT (streaming SSE, pas de WAF)
+#   /messages/*  → Reverse Proxy DIRECT (MCP protocol, pas de WAF)
+#   /api/*       → WAF Coraza + Reverse Proxy (timeout 5min pour outils longs)
+#   /*           → WAF Coraza + Reverse Proxy (statiques, health, etc.)
+#
+# Les routes SSE et messages sont authentifiées par token MCP côté serveur.
+# Le WAF Coraza bufférise les réponses pour les inspecter, ce qui est
+# incompatible avec le streaming SSE (connexions longues, flux continu).
+#
+# =============================================================================
+#
+# MODES D'UTILISATION :
+#
+# 1. DÉVELOPPEMENT (HTTP, pas de TLS) :
+#    - Laisser SITE_ADDRESS=:8080 dans le .env
+#    - Accès via http://localhost:8080
+#
+# 2. PRODUCTION (HTTPS + Let's Encrypt automatique) :
+#    - Mettre SITE_ADDRESS=mon-service.votre-domaine.com dans le .env
+#    - Exposer les ports 80 + 443 dans docker-compose.yml
+#    - Caddy obtient et renouvelle le certificat TLS automatiquement
+#
+# 3. PRODUCTION derrière un reverse proxy amont (nginx, etc.) :
+#    - Laisser SITE_ADDRESS=:8080 (HTTP)
+#    - Le reverse proxy amont gère le TLS
+#
+# =============================================================================
+
+{
+	# Ordre des directives : rate_limit → WAF → reverse_proxy
+	order rate_limit first
+	order coraza_waf after rate_limit
+
+	# Pas de page admin Caddy
+	admin off
+}
+
+# SITE_ADDRESS est défini par la variable d'env (défaut: :8080)
+{$SITE_ADDRESS::8080} {
+
+	# =========================================================================
+	# Headers de Sécurité (appliqués à TOUTES les routes)
+	# =========================================================================
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+		-X-Powered-By
+	}
+
+	# =========================================================================
+	# Rate Limiting par IP (appliqué AVANT le WAF)
+	# =========================================================================
+	# Limites calibrées pour des agents IA :
+	# - SSE : 10 nouvelles connexions/min (1 connexion dure des heures)
+	# - Messages MCP : 60 appels d'outils/min (burst d'un agent actif)
+	# - API REST : 30 requêtes/min (interface web)
+	# - Global : 200 requêtes/min (toutes routes confondues)
+	#
+	# Adapter ces limites selon votre cas d'usage.
+	# =========================================================================
+	rate_limit {
+		zone sse {
+			match {
+				path /sse*
+			}
+			key {remote_host}
+			events 10
+			window 1m
+		}
+		zone messages {
+			match {
+				path /messages/*
+			}
+			key {remote_host}
+			events 60
+			window 1m
+		}
+		zone api {
+			match {
+				path /api/*
+			}
+			key {remote_host}
+			events 30
+			window 1m
+		}
+		zone global {
+			key {remote_host}
+			events 200
+			window 1m
+		}
+	}
+
+	# =========================================================================
+	# Route 1 : SSE (Server-Sent Events) — SANS WAF
+	# =========================================================================
+	# Le protocole MCP utilise SSE pour la communication bidirectionnelle.
+	# Les connexions restent ouvertes pendant toute la session.
+	# Coraza bufférise les réponses → incompatible avec le streaming SSE.
+	# =========================================================================
+	handle /sse* {
+		# ⚠️ Adapter "mon-mcp" au nom de votre service dans docker-compose.yml
+		reverse_proxy mon-mcp:8002 {
+			flush_interval -1
+			transport http {
+				read_timeout 0
+				write_timeout 0
+				response_header_timeout 0
+			}
+		}
+	}
+
+	# =========================================================================
+	# Route 2 : Messages MCP — SANS WAF
+	# =========================================================================
+	# POST /messages/{session_id} — appels d'outils MCP
+	# Le body JSON peut contenir du base64 volumineux → faux positifs CRS.
+	# Certains outils peuvent prendre plusieurs minutes.
+	# =========================================================================
+	handle /messages/* {
+		reverse_proxy mon-mcp:8002 {
+			transport http {
+				read_timeout 1800s
+				write_timeout 1800s
+				response_header_timeout 1800s
+			}
+		}
+	}
+
+	# =========================================================================
+	# Route 3 : Tout le reste — AVEC WAF Coraza
+	# =========================================================================
+	# Protégé par OWASP CRS contre : injections SQL/NoSQL, XSS, LFI/RFI,
+	# SSRF, path traversal, scanner/bot detection.
+	# =========================================================================
+	handle {
+		coraza_waf {
+			load_owasp_crs
+			directives `
+				Include @coraza.conf-recommended
+				Include @crs-setup.conf.example
+				Include @owasp_crs/*.conf
+
+				SecRuleEngine On
+
+				SecAction "id:900110,phase:1,pass,nolog,\
+					setvar:tx.inbound_anomaly_score_threshold=5,\
+					setvar:tx.outbound_anomaly_score_threshold=4"
+
+				SecRequestBodyLimit 75000000
+				SecRequestBodyNoFilesLimit 75000000
+				SecRequestBodyLimitAction ProcessPartial
+
+				SecAction "id:900220,phase:1,pass,nolog,\
+					setvar:'tx.allowed_request_content_type=|application/json|text/plain|multipart/form-data|application/x-www-form-urlencoded|application/octet-stream|'"
+			`
+		}
+
+		# API REST — timeout généreux pour outils longs (5 min)
+		@api {
+			path /api/*
+		}
+		reverse_proxy @api mon-mcp:8002 {
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+				response_header_timeout 300s
+			}
+		}
+
+		# Tout le reste — timeout standard
+		reverse_proxy mon-mcp:8002
+	}
+
+	# =========================================================================
+	# Logging
+	# =========================================================================
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+}

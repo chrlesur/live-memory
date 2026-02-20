@@ -1,0 +1,43 @@
+# === Dossiers de travail ===
+chantier/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# === Environment / Secrets ===
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# === Docker ===
+docker-compose.override.yml
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# === Logs ===
+*.log
+logs/
+
+# === OS ===
+Thumbs.db
+.DS_Store
+DESIGN/Graph-mem/
