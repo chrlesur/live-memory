@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Serveur MCP — Point d'entrée principal.
+Serveur MCP Live Memory — Point d'entrée principal.
 
 Ce fichier :
 1. Crée l'instance FastMCP
-2. Déclare les outils MCP (@mcp.tool())
+2. Enregistre les outils MCP via tools/ (modulaire, par catégorie)
 3. Assemble la chaîne de middlewares ASGI
 4. Démarre le serveur Uvicorn
+
+Architecture des outils :
+    tools/system.py → system_health, system_about
+    tools/space.py  → space_create, space_list, space_info, ...
+    tools/live.py   → live_note, live_read, live_search
+    (Phase 3) tools/bank.py   → bank_read, bank_consolidate, ...
+    (Phase 4) tools/backup.py → backup_create, backup_restore, ...
+    (Phase 4) tools/admin.py  → admin_create_token, ...
 
 Usage :
     python -m live_mem.server
@@ -14,14 +22,11 @@ Usage :
 
 import sys
 import time
-import platform
-from typing import Optional
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.fastmcp import FastMCP
 
 from .config import get_settings
-from .auth.context import check_access, check_write_permission
 
 # =============================================================================
 # Instance FastMCP
@@ -35,110 +40,15 @@ mcp = FastMCP(
     port=settings.mcp_server_port,
 )
 
-
 # =============================================================================
-# Getters lazy-load pour les services métier
+# Enregistrement des outils — délégué aux modules tools/
 # =============================================================================
-# Ajouter ici vos services (base de données, APIs externes, etc.)
-# Ne JAMAIS instancier au top-level — toujours via getter singleton.
+# Chaque module tools/xxx.py expose une fonction register(mcp) -> int
+# qui déclare ses outils via @mcp.tool() et retourne le nombre d'outils.
 
-# _my_db = None
-# def get_db():
-#     global _my_db
-#     if _my_db is None:
-#         from .core.database import DatabaseService
-#         _my_db = DatabaseService()
-#     return _my_db
+from .tools import register_all_tools
 
-
-# =============================================================================
-# Outils MCP — Système (inclus dans le boilerplate)
-# =============================================================================
-
-@mcp.tool()
-async def system_health() -> dict:
-    """
-    Vérifie l'état de santé du service.
-
-    Retourne le statut de chaque service backend.
-    Cet outil ne nécessite aucune authentification.
-
-    Returns:
-        État global du système et détails par service
-    """
-    results = {}
-
-    # TODO: Ajouter vos checks de services métier ici
-    # Exemple :
-    # try:
-    #     results["database"] = await get_db().test_connection()
-    # except Exception as e:
-    #     results["database"] = {"status": "error", "message": str(e)}
-
-    # Service factice pour le boilerplate
-    results["server"] = {"status": "ok", "uptime": "running"}
-
-    all_ok = all(r.get("status") == "ok" for r in results.values())
-
-    return {
-        "status": "ok" if all_ok else "error",
-        "service_name": settings.mcp_server_name,
-        "services": results,
-    }
-
-
-@mcp.tool()
-async def system_about() -> dict:
-    """
-    Informations sur le service MCP.
-
-    Retourne la version, les outils disponibles, et les infos système.
-    Cet outil ne nécessite aucune authentification.
-
-    Returns:
-        Métadonnées du service
-    """
-    # Lire la version depuis le fichier VERSION
-    version = "dev"
-    version_file = Path(__file__).parent.parent.parent / "VERSION"
-    if version_file.exists():
-        version = version_file.read_text().strip()
-
-    # Lister les outils MCP disponibles
-    tools = []
-    for tool in mcp._tool_manager.list_tools():
-        tools.append({
-            "name": tool.name,
-            "description": (tool.description or "")[:100],
-        })
-
-    return {
-        "status": "ok",
-        "service_name": settings.mcp_server_name,
-        "version": version,
-        "python_version": platform.python_version(),
-        "platform": platform.platform(),
-        "tools_count": len(tools),
-        "tools": tools,
-    }
-
-
-# =============================================================================
-# Outils MCP — Votre domaine métier
-# =============================================================================
-# Ajouter vos outils ici. Chaque outil suit le pattern :
-#
-# @mcp.tool()
-# async def mon_outil(param: str, ctx: Optional[Context] = None) -> dict:
-#     """Docstring visible par les agents IA."""
-#     try:
-#         access_err = check_access(resource_id)
-#         if access_err:
-#             return access_err
-#         result = await get_my_service().do_something(param)
-#         return {"status": "ok", "data": result}
-#     except Exception as e:
-#         return {"status": "error", "message": str(e)}
+tools_count = register_all_tools(mcp)
 
 
 # =============================================================================
@@ -149,10 +59,18 @@ def create_app():
     """
     Crée l'application ASGI complète avec les middlewares.
 
-    Pile d'exécution :
+    Pile d'exécution (premier exécuté → dernier) :
         AuthMiddleware → LoggingMiddleware → HostNormalizerMiddleware → mcp.sse_app()
+
+    L'AuthMiddleware extrait le Bearer token et l'injecte dans les contextvars.
+    Le LoggingMiddleware trace les requêtes HTTP sur stderr.
+    Le HostNormalizerMiddleware remplace le header Host pour le SDK MCP.
     """
-    from .auth.middleware import AuthMiddleware, LoggingMiddleware, HostNormalizerMiddleware
+    from .auth.middleware import (
+        AuthMiddleware,
+        LoggingMiddleware,
+        HostNormalizerMiddleware,
+    )
 
     # L'app de base est le SSE handler du SDK MCP
     app = mcp.sse_app()
@@ -166,28 +84,63 @@ def create_app():
 
 
 # =============================================================================
+# Helpers internes
+# =============================================================================
+
+def _read_version() -> str:
+    """Lit la version depuis le fichier VERSION à la racine du projet."""
+    version_file = Path(__file__).parent.parent.parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text().strip()
+    return "dev"
+
+
+# =============================================================================
 # Point d'entrée
 # =============================================================================
 
 def main():
-    """Démarre le serveur MCP."""
+    """Démarre le serveur MCP Live Memory."""
     import uvicorn
 
+    version = _read_version()
+
+    # Lister les outils disponibles et les grouper par catégorie
+    tools = mcp._tool_manager.list_tools()
+    tool_names = [t.name for t in tools]
+
+    categories = {
+        "System": [n for n in tool_names if n.startswith("system_")],
+        "Space":  [n for n in tool_names if n.startswith("space_")],
+        "Live":   [n for n in tool_names if n.startswith("live_")],
+        "Bank":   [n for n in tool_names if n.startswith("bank_")],
+        "Backup": [n for n in tool_names if n.startswith("backup_")],
+        "Admin":  [n for n in tool_names if n.startswith("admin_")],
+    }
+
+    # Construire la bannière de démarrage
+    banner_lines = []
+    for cat, names in categories.items():
+        if names:
+            banner_lines.append(f"    {cat:8s}: {', '.join(names)}")
+
+    banner_tools = "\n".join(banner_lines) if banner_lines else "    (aucun)"
+
     print(f"""
-╔══════════════════════════════════════════════╗
-║   {settings.mcp_server_name:^40s}   ║
-╠══════════════════════════════════════════════╣
-║                                              ║
-║  🔧 Outils disponibles :                    ║
-║    - system_health                           ║
-║    - system_about                            ║
-║                                              ║
-║  🌐 Serveur : http://{settings.mcp_server_host}:{settings.mcp_server_port:<5d}             ║
-║  📡 SSE     : http://{settings.mcp_server_host}:{settings.mcp_server_port:<5d}/sse          ║
-║                                              ║
-╚══════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════╗
+║       Live Memory MCP Server v{version:<17s}  ║
+╠══════════════════════════════════════════════════╣
+║                                                  ║
+║  🔧 {len(tool_names)} outils MCP :                              ║
+{banner_tools}
+║                                                  ║
+║  🌐 http://{settings.mcp_server_host}:{settings.mcp_server_port:<5d}                          ║
+║  📡 http://{settings.mcp_server_host}:{settings.mcp_server_port:<5d}/sse                       ║
+║                                                  ║
+╚══════════════════════════════════════════════════╝
 """, file=sys.stderr)
 
+    # Créer l'app ASGI avec middlewares et démarrer Uvicorn
     app = create_app()
 
     uvicorn.run(

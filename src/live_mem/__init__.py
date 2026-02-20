@@ -1,2 +1,4 @@
 # -*- coding: utf-8 -*-
-"""Live Memory MCP — Package principal."""
+"""Live Memory — Memory Bank as a Service pour agents IA collaboratifs."""
+
+__version__ = "0.1.0"

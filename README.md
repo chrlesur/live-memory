@@ -42,7 +42,7 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   24 outils • Auth Bearer      │
+          │   25 outils • Auth Bearer      │
           │   Consolidation LLM            │
           └──────┬──────────┬──────────────┘
                  │          │
@@ -58,16 +58,18 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
 
 ## ✨ Fonctionnalités
 
-### 24 outils MCP
+### 25 outils MCP
 
-| Catégorie      | Outils                                                                                                     | Description                 |
-| -------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------- |
-| **Space** (7)  | `space_create`, `space_list`, `space_info`, `space_rules`, `space_summary`, `space_export`, `space_delete` | Gestion des espaces mémoire |
-| **Live** (3)   | `live_note`, `live_read`, `live_search`                                                                    | Notes en temps réel         |
-| **Bank** (4)   | `bank_read`, `bank_read_all`, `bank_list`, `bank_consolidate`                                              | Memory Bank consolidée      |
-| **Backup** (5) | `backup_create`, `backup_list`, `backup_restore`, `backup_download`, `backup_delete`                       | Sauvegarde & restauration   |
-| **Admin** (4)  | `admin_create_token`, `admin_list_tokens`, `admin_revoke_token`, `admin_update_token`                      | Gestion des tokens          |
-| **System** (2) | `system_health`, `system_about`                                                                            | Santé & identité            |
+| Catégorie       | Outils                                                                                                     | Description                 |
+| --------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------- |
+| **System** (2)  | `system_health`, `system_about`                                                                            | Santé & identité            |
+| **Space** (7)   | `space_create`, `space_list`, `space_info`, `space_rules`, `space_summary`, `space_export`, `space_delete` | Gestion des espaces mémoire |
+| **Live** (3)    | `live_note`, `live_read`, `live_search`                                                                    | Notes en temps réel         |
+| **Bank** (4)    | `bank_read`, `bank_read_all`, `bank_list`, `bank_consolidate`                                              | Memory Bank consolidée      |
+| **Backup** (5)  | `backup_create`, `backup_list`, `backup_restore`, `backup_download`, `backup_delete`                       | Sauvegarde & restauration   |
+| **Admin** (4)   | `admin_create_token`, `admin_list_tokens`, `admin_revoke_token`, `admin_update_token`                      | Gestion des tokens          |
+
+> **Statut** : ✅ 25/25 outils implémentés, pipeline E2E validé sur infrastructure Cloud Temple réelle (S3 + LLMaaS)
 
 ### Points forts
 
@@ -88,7 +90,7 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
 - Un bucket S3 (Cloud Temple Dell ECS ou compatible)
 - Une clé API LLMaaS Cloud Temple
 
-### Installation
+### Installation (Docker)
 
 ```bash
 git clone https://github.com/chrlesur/live-memory.git
@@ -100,20 +102,26 @@ docker compose build
 docker compose up -d
 ```
 
-### Premier usage
+### Installation (Dev local)
 
 ```bash
-# Vérifier la santé
-python3 scripts/mcp_cli.py health
+git clone https://github.com/chrlesur/live-memory.git
+cd live-memory
+cp .env.example .env
+nano .env  # Remplir les credentials
 
-# Créer un token admin
-export MCP_TOKEN=$ADMIN_BOOTSTRAP_KEY
-python3 scripts/mcp_cli.py token create admin-ops admin
+pip install -r requirements.txt
+cd src && python -m live_mem.server
+```
 
-# Créer un espace mémoire
-python3 scripts/mcp_cli.py space create mon-projet \
-  --rules-file ./rules/standard-memory-bank.md \
-  --description "Mon premier projet"
+### Vérification rapide
+
+```bash
+# Test S3 + LLMaaS + serveur
+python chantier/test_phase1.py
+
+# Test E2E complet (create → notes → consolidate → bank → cleanup)
+python chantier/test_e2e.py
 ```
 
 ---
@@ -133,12 +141,25 @@ live-mem/
 │   │   ├── DEPLOIEMENT_PRODUCTION.md
 │   │   ├── CLOUD_TEMPLE_SERVICES.md
 │   │   └── ANALYSE_RISQUES_SECURITE.md
-├── src/                    # 🐍 Code source (boilerplate live_mem)
+├── src/                    # 🐍 Code source (25 outils MCP)
 │   └── live_mem/
-│       ├── server.py       # Outils MCP
-│       ├── config.py       # Configuration
-│       ├── auth/           # Authentification
-│       └── core/           # Services métier
+│       ├── server.py       # Point d'entrée ASGI + middlewares
+│       ├── config.py       # Configuration pydantic-settings
+│       ├── auth/           # Auth Bearer (contextvars + middleware)
+│       ├── core/           # Services métier
+│       │   ├── storage.py  #   S3 dual SigV2/SigV4 (Dell ECS)
+│       │   ├── space.py    #   CRUD espaces mémoire
+│       │   ├── live.py     #   Notes live (append-only)
+│       │   ├── consolidator.py # Pipeline LLM
+│       │   ├── tokens.py   #   Gestion tokens SHA-256
+│       │   └── backup.py   #   Snapshots S3
+│       └── tools/          # Outils MCP par catégorie
+│           ├── system.py   #   2 outils
+│           ├── space.py    #   7 outils
+│           ├── live.py     #   3 outils
+│           ├── bank.py     #   4 outils
+│           ├── backup.py   #   5 outils
+│           └── admin.py    #   4 outils
 ├── scripts/                # 🖥️ CLI + Shell interactif
 ├── waf/                    # 🛡️ WAF Caddy + Coraza
 ├── .env.example

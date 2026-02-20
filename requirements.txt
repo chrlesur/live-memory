@@ -15,9 +15,11 @@ prompt-toolkit>=3.0
 httpx>=0.27
 httpx-sse>=0.4
 
-# === Ajouter vos dépendances métier ici ===
-# psycopg2-binary>=2.9     # PostgreSQL
-# redis>=5.0               # Redis
-# boto3>=1.34              # AWS S3
-# neo4j>=5.0               # Neo4j
-# qdrant-client>=1.7       # Qdrant
+# === S3 Cloud Temple (Dell ECS) ===
+boto3>=1.34
+
+# === LLMaaS Cloud Temple (API OpenAI-compatible) ===
+openai>=1.0
+
+# === Utilitaires ===
+python-dotenv>=1.0
