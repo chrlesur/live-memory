@@ -91,8 +91,8 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
 ### Installation
 
 ```bash
-git clone https://github.com/chrlesur/live-mem.git
-cd live-mem
+git clone https://github.com/chrlesur/live-memory.git
+cd live-memory
 cp .env.example .env
 nano .env  # Remplir S3, LLMaaS, ADMIN_BOOTSTRAP_KEY
 
