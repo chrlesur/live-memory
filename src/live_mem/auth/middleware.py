@@ -4,6 +4,12 @@ Middlewares ASGI : authentification, logging, normalisation Host.
 
 Pile d'exécution (ordre) :
     AuthMiddleware → LoggingMiddleware → HostNormalizerMiddleware → mcp.sse_app()
+
+L'AuthMiddleware :
+    1. Extrait le Bearer token du header Authorization (ou query string)
+    2. Vérifie d'abord le bootstrap key (accès admin direct)
+    3. Sinon, valide le token via TokenService (lookup SHA-256 dans S3)
+    4. Injecte les infos du token dans les contextvars
 """
 
 import sys
@@ -18,10 +24,9 @@ class AuthMiddleware:
     """
     Middleware ASGI d'authentification par Bearer token.
 
-    - Extrait le token du header Authorization
-    - Compare le hash SHA-256 avec le bootstrap key (ou un store externe)
-    - Injecte les infos du token dans les contextvars
-    - Les routes publiques (/health, etc.) passent sans token
+    Supporte deux modes de validation :
+    1. Bootstrap key (variable d'env) → admin total
+    2. Tokens S3 (via TokenService) → permissions granulaires
     """
 
     # Routes qui ne nécessitent pas d'authentification
@@ -45,7 +50,8 @@ class AuthMiddleware:
         token_info = None
 
         if token:
-            token_info = self._validate_token(token)
+            # Valider le token (bootstrap key puis TokenService S3)
+            token_info = await self._validate_token(token)
 
         # Injecter dans le contextvar (même si None → les outils vérifieront)
         tok = current_token_info.set(token_info)
@@ -68,16 +74,23 @@ class AuthMiddleware:
                 return param[6:]
         return None
 
-    def _validate_token(self, token: str) -> Optional[dict]:
+    async def _validate_token(self, token: str) -> Optional[dict]:
         """
         Valide un token et retourne ses infos.
 
-        Version simple : compare avec le bootstrap key.
-        Pour un vrai système, connecter à un store de tokens (DB, Redis, etc.).
+        Deux modes de validation :
+        1. Bootstrap key → admin total (pour le premier démarrage)
+        2. TokenService → lookup SHA-256 dans _system/tokens.json sur S3
+
+        Args:
+            token: Token brut (ex: "lm_a1B2c3..." ou bootstrap key)
+
+        Returns:
+            Dict {client_name, permissions, allowed_resources} ou None
         """
         settings = get_settings()
 
-        # Bootstrap key → admin total
+        # Mode 1 : Bootstrap key → admin total
         if token == settings.admin_bootstrap_key:
             return {
                 "client_name": "admin",
@@ -85,11 +98,16 @@ class AuthMiddleware:
                 "allowed_resources": [],  # vide = accès total
             }
 
-        # TODO: Ajouter ici la validation depuis un store de tokens
-        # token_hash = hashlib.sha256(token.encode()).hexdigest()
-        # token_info = token_store.get_by_hash(token_hash)
-        # if token_info and not token_info.revoked:
-        #     return token_info.to_dict()
+        # Mode 2 : Validation via TokenService (tokens stockés sur S3)
+        try:
+            from ..core.tokens import get_token_service
+            token_info = await get_token_service().validate_token(token)
+            if token_info:
+                return token_info
+        except Exception as e:
+            # Si S3 n'est pas configuré ou tokens.json n'existe pas,
+            # on continue silencieusement (le token sera invalide)
+            print(f"⚠️  Auth: TokenService error: {e}", file=sys.stderr)
 
         return None  # Token invalide
 
