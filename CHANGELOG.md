@@ -5,6 +5,30 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.3.0] — 2026-02-21
+
+### Ajouté
+- **🌉 Graph Bridge** — Pont entre Live Memory (mémoire de travail) et Graph Memory (mémoire long terme)
+  - `graph_connect` — Connecte un space à une instance Graph Memory (teste la connexion, crée la mémoire si besoin)
+  - `graph_push` — Synchronise la bank dans le graphe (delete + re-ingest intelligent, nettoyage orphelins)
+  - `graph_status` — Statut complet : stats graphe (documents, entités, relations), liste des documents ingérés, top entités
+  - `graph_disconnect` — Déconnecte un space (les données restent dans le graphe)
+- **`GraphMemoryConfig`** dans `SpaceMeta` — Configuration de connexion stockée dans `_meta.json` (url, token, memory_id, ontology, métriques push)
+- **`GraphMemoryClient`** — Client MCP SSE minimaliste pour communiquer avec graph-memory (handshake complet, call_tool)
+- **`GraphBridgeService`** — Service orchestrateur (connect, push, status, disconnect)
+- **Test E2E `test_graph_bridge.py`** — Pipeline complet : notes → consolidation → push graph → stats → ré-ingestion → déconnexion
+  - Mode `--step` (pas-à-pas interactif)
+  - Affichage Rich (encadrés, stats graphe, top entités)
+  - Arguments `--graph-url`, `--graph-token`, `--ontology`, `--graph-memory-id`
+- **30 outils MCP** (était 26) — 7 catégories (+ graph)
+- Ontologie paramétrable pour graph-memory (défaut: `general`, options: legal, cloud, managed-services, presales)
+
+### Changé
+- Module `tools/__init__.py` — Enregistrement du nouveau module `tools/graph.py`
+- Total outils MCP : **30** (26 + 4 graph)
+
+---
+
 ## [0.2.0] — 2026-02-21
 
 ### Ajouté

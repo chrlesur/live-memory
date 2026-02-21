@@ -17,6 +17,24 @@ from pydantic import BaseModel, Field
 # Space — Métadonnées d'un espace mémoire
 # =============================================================================
 
+class GraphMemoryConfig(BaseModel):
+    """
+    Configuration de connexion vers une instance Graph Memory.
+
+    Permet à un space de pousser ses fichiers bank dans un graphe
+    de connaissances pour la mémoire long terme.
+
+    Stocké dans _meta.json, champ "graph_memory".
+    """
+    url: str = ""                               # URL SSE de graph-memory (ex: "http://localhost:8080/sse")
+    token: str = ""                             # Bearer token pour graph-memory
+    memory_id: str = ""                         # Memory cible dans graph-memory
+    ontology: str = "general"                   # Ontologie graph-memory à utiliser
+    last_push: Optional[str] = None             # ISO 8601 du dernier push
+    push_count: int = 0                         # Nombre total de pushs effectués
+    files_pushed: int = 0                       # Nombre de fichiers poussés au dernier push
+
+
 class SpaceMeta(BaseModel):
     """
     Métadonnées d'un espace (_meta.json sur S3).
@@ -30,6 +48,7 @@ class SpaceMeta(BaseModel):
     last_consolidation: Optional[str] = None    # ISO 8601 ou None
     consolidation_count: int = 0
     total_notes_processed: int = 0
+    graph_memory: Optional[GraphMemoryConfig] = None  # Connexion graph-memory
     version: int = 1
 
 

@@ -31,6 +31,7 @@ def register_all_tools(mcp: FastMCP) -> int:
     from .space import register as register_space
     from .live import register as register_live
     from .bank import register as register_bank
+    from .graph import register as register_graph
     from .backup import register as register_backup
     from .admin import register as register_admin
 
@@ -39,6 +40,7 @@ def register_all_tools(mcp: FastMCP) -> int:
     count += register_space(mcp)
     count += register_live(mcp)
     count += register_bank(mcp)
+    count += register_graph(mcp)
     count += register_backup(mcp)
     count += register_admin(mcp)
 

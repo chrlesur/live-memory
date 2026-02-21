@@ -180,40 +180,88 @@ live-mem> quit                        # Quitter
 
 ## 🧪 Scripts de test
 
-### Recette simple (1 agent)
-
+Tous les tests fonctionnent via Docker Compose + WAF. Assurez-vous que le serveur tourne :
 ```bash
-# Test E2E complet via Docker Compose + WAF
 docker compose up -d
-python scripts/test_recette.py
-
-# Garder l'espace pour inspection
-python scripts/test_recette.py --no-cleanup
-
-# Mode pas-à-pas (pause entre chaque étape)
-python scripts/test_recette.py --step
 ```
 
-Simule un agent sysadmin mettant à jour Ubuntu 22.04 → 24.04 :
-token → espace → rules → 12 notes → consolidation LLM → 6 fichiers bank → cleanup
+Options communes à tous les tests :
+- `--step` — Mode pas-à-pas (pause entre chaque étape, Entrée pour avancer)
+- `--no-cleanup` — Conserver les données après le test (pour inspection)
+- `--url` — URL du serveur Live Memory (défaut: `http://localhost:8080`)
+- `--token` — Bootstrap key admin (défaut: depuis `.env`)
 
-### Multi-agents (3 agents)
+### 1. Recette simple — `test_recette.py`
+
+```bash
+python scripts/test_recette.py
+python scripts/test_recette.py --step --no-cleanup
+```
+
+**Scénario** : Un agent sysadmin met à jour Ubuntu 22.04 → 24.04.
+**Pipeline** : token → espace → rules → 12 notes (4 catégories) → consolidation LLM → 6 fichiers bank → cleanup.
+**Durée** : ~30s (dont ~15s consolidation LLM).
+
+### 2. Multi-agents — `test_multi_agents.py`
 
 ```bash
 python scripts/test_multi_agents.py
 python scripts/test_multi_agents.py --step --no-cleanup
 ```
 
-3 agents collaborent : agent-infra (OS), agent-dev (apps), agent-qa (validation).
-Chaque agent écrit ses notes et consolide indépendamment. La bank évolue progressivement.
+**Scénario** : 3 agents collaborent sur un même espace :
+- `agent-infra` — Notes sur l'OS, le réseau, la sécurité
+- `agent-dev` — Notes sur les apps, le code, les dépendances
+- `agent-qa` — Notes de validation, tests, issues
 
-### Garbage Collector
+Chaque agent écrit ses notes et consolide indépendamment. La bank évolue progressivement avec les contributions de chaque agent.
+
+### 3. Garbage Collector — `test_gc.py`
 
 ```bash
 python scripts/test_gc.py
 ```
 
-Crée des notes orphelines, teste le dry-run et la consolidation forcée GC.
+**Scénario** : Crée des notes orphelines (> 7 jours), teste le dry-run et la consolidation forcée GC.
+**Vérifie** : Comptage notes orphelines, consolidation automatique, suppression.
+
+### 4. 🌉 Graph Bridge — `test_graph_bridge.py`
+
+```bash
+# Via arguments
+python scripts/test_graph_bridge.py \
+  --graph-url https://graph-mem.mcp.cloud-temple.app \
+  --graph-token votre_token_graph_memory
+
+# Via variables d'environnement
+export GRAPH_MEM_URL=https://graph-mem.mcp.cloud-temple.app
+export GRAPH_MEM_TOKEN=votre_token_graph_memory
+python scripts/test_graph_bridge.py
+
+# Mode pas-à-pas
+python scripts/test_graph_bridge.py --step --no-cleanup
+```
+
+**Scénario** : Teste le pont Live Memory → Graph Memory en 9 étapes :
+1. Health check Live Memory
+2. Préparation : token + espace + 6 notes + consolidation LLM → 3 fichiers bank
+3. `graph_connect` — Connexion à Graph Memory (crée la mémoire si besoin)
+4. `graph_push` — Push des 3 fichiers bank (delete + re-ingest, extraction LLM d'entités/relations)
+5. `graph_status` — Statistiques graphe (documents, entités, relations, top entités)
+6. Second push — Test de ré-ingestion (delete → re-ingest pour recalculer le graphe)
+7. `graph_disconnect` — Déconnexion propre
+8. Vérification post-déconnexion
+9. Nettoyage
+
+**Options spécifiques** :
+- `--graph-url` — URL de Graph Memory (ou env `GRAPH_MEM_URL`)
+- `--graph-token` — Token Graph Memory (ou env `GRAPH_MEM_TOKEN`)
+- `--graph-memory-id` — ID de la mémoire cible (défaut: `LIVE-MEM-TEST`)
+- `--ontology` — Ontologie d'extraction (défaut: `general`, options: legal, cloud, managed-services, presales)
+
+**Durée** : ~2-3 min (ingestion LLM dans graph-memory ~30-50s/fichier).
+
+**Résultat attendu** : Les fichiers bank sont ingérés dans le graphe de connaissances avec extraction d'entités (ex: HAProxy, Kong, PostgreSQL) et relations entre concepts.
 
 ---
 
@@ -225,17 +273,18 @@ scripts/
 ├── test_recette.py         # 🧪 Recette E2E (1 agent, 12 notes)
 ├── test_multi_agents.py    # 🧪 Multi-agents (3 agents collaborent)
 ├── test_gc.py              # 🧪 Test du Garbage Collector
+├── test_graph_bridge.py    # 🌉 Test du pont Graph Memory
 ├── README.md               # ← Vous êtes ici
 └── cli/
     ├── __init__.py         # Config (BASE_URL, TOKEN)
     ├── client.py           # MCPClient HTTP/SSE + handshake MCP
-    ├── commands.py         # Commandes Click (359 lignes)
-    ├── display.py          # Affichage Rich (258 lignes)
-    └── shell.py            # Shell interactif (307 lignes)
+    ├── commands.py         # Commandes Click
+    ├── display.py          # Affichage Rich (tables, panels)
+    └── shell.py            # Shell interactif prompt_toolkit
 ```
 
 **Pattern** : Chaque commande appelle un outil MCP via `MCPClient.call_tool()` puis affiche le résultat via `display.py`. Les fonctions `show_xxx()` sont partagées entre CLI et Shell (DRY).
 
 ---
 
-*Live Memory CLI v0.2.0*
+*Live Memory CLI v0.3.0*
