@@ -266,6 +266,132 @@ def show_backup_created(result: dict):
     )
 
 
+# =============================================================================
+# Graph Bridge
+# =============================================================================
+
+def show_graph_connected(result: dict):
+    """Affiche le résultat d'un graph_connect."""
+    gm = result.get("graph_memory", {})
+    created = "✨ créée" if gm.get("memory_created") else "existait déjà"
+    console.print(Panel.fit(
+        f"[bold]Space :[/bold] [cyan]{result.get('space_id', '?')}[/cyan]\n"
+        f"[bold]URL :[/bold] {gm.get('url', '?')}\n"
+        f"[bold]Memory ID :[/bold] [green]{gm.get('memory_id', '?')}[/green]\n"
+        f"[bold]Ontologie :[/bold] {gm.get('ontology', '?')}\n"
+        f"[bold]Mémoire :[/bold] {created}",
+        title="🌉 Connecté à Graph Memory", border_style="green",
+    ))
+
+
+def show_graph_status(result: dict):
+    """Affiche le résultat d'un graph_status."""
+    connected = result.get("connected", False)
+    if not connected:
+        console.print(Panel.fit(
+            f"[bold]Space :[/bold] [cyan]{result.get('space_id', '?')}[/cyan]\n"
+            f"[dim]{result.get('message', 'Non connecté')}[/dim]",
+            title="🌉 Graph Memory — Non connecté", border_style="dim",
+        ))
+        return
+
+    config = result.get("config", {})
+    reachable = result.get("reachable", False)
+    stats = result.get("graph_stats")
+    docs = result.get("graph_documents", [])
+    top = result.get("top_entities", [])
+
+    # Section config
+    lines = [
+        f"[bold]URL :[/bold] {config.get('url', '?')}",
+        f"[bold]Memory ID :[/bold] [green]{config.get('memory_id', '?')}[/green]",
+        f"[bold]Ontologie :[/bold] {config.get('ontology', '?')}",
+        f"[bold]Joignable :[/bold] {'✅ oui' if reachable else '❌ non'}",
+    ]
+
+    # Section pushs
+    if result.get("last_push"):
+        lines.append(f"[bold]Dernier push :[/bold] {result['last_push'][:19]}")
+        lines.append(f"[bold]Pushs totaux :[/bold] {result.get('push_count', 0)}")
+        lines.append(f"[bold]Fichiers :[/bold] {result.get('files_pushed', 0)}")
+
+    console.print(Panel.fit("\n".join(lines), title="🌉 Graph Memory — Config", border_style="blue"))
+
+    # Section stats graphe
+    if stats:
+        table = Table(title="📊 Statistiques du graphe", show_header=True)
+        table.add_column("Métrique", style="cyan bold")
+        table.add_column("Valeur", justify="right")
+        table.add_row("Documents", str(stats.get("document_count", 0)))
+        table.add_row("Entités", str(stats.get("entity_count", 0)))
+        table.add_row("Relations", str(stats.get("relation_count", 0)))
+        console.print(table)
+
+    # Section documents
+    if docs:
+        table = Table(title="📄 Documents ingérés", show_header=True)
+        table.add_column("Fichier", style="cyan bold")
+        table.add_column("Entités", justify="right")
+        table.add_column("Taille", justify="right")
+        for d in docs:
+            table.add_row(
+                d.get("filename", "?"),
+                str(d.get("entity_count", 0)),
+                f"{d.get('size', 0)} oct",
+            )
+        console.print(table)
+
+    # Section top entités
+    if top:
+        table = Table(title="🏷️  Top entités", show_header=True)
+        table.add_column("Type", style="magenta")
+        table.add_column("Nom", style="cyan bold")
+        for e in top[:10]:
+            if isinstance(e, dict):
+                table.add_row(
+                    e.get("type", "?"),
+                    e.get("name", "?"),
+                )
+            else:
+                table.add_row("", str(e))
+        console.print(table)
+
+
+def show_graph_push_result(result: dict):
+    """Affiche le résultat d'un graph_push."""
+    errs = result.get("errors", 0)
+    border = "green" if errs == 0 else "yellow"
+    lines = [
+        f"[bold]Fichiers poussés :[/bold] {result.get('pushed', 0)}",
+        f"[bold]Supprimés (ré-ingest) :[/bold] {result.get('deleted_before_reingest', 0)}",
+        f"[bold]Orphelins nettoyés :[/bold] {result.get('cleaned_orphans', 0)}",
+        f"[bold]Erreurs :[/bold] {'[red]' + str(errs) + '[/red]' if errs else '0'}",
+        f"[bold]Durée :[/bold] {result.get('duration_seconds', 0)}s",
+    ]
+    error_details = result.get("error_details", [])
+    if error_details:
+        lines.append("")
+        for ed in error_details:
+            lines.append(f"  [red]✗ {ed.get('filename', '?')} : {ed.get('error', '?')}[/red]")
+    console.print(Panel.fit("\n".join(lines), title="📤 Push Graph Memory", border_style=border))
+
+
+def show_graph_disconnected(result: dict):
+    """Affiche le résultat d'un graph_disconnect."""
+    was = result.get("was_connected_to", {})
+    console.print(Panel.fit(
+        f"[bold]Space :[/bold] [cyan]{result.get('space_id', '?')}[/cyan]\n"
+        f"[bold]Était connecté à :[/bold] {was.get('memory_id', '?')}\n"
+        f"[bold]URL :[/bold] {was.get('url', '?')}\n"
+        f"[bold]Pushs effectués :[/bold] {was.get('push_count', 0)}",
+        title="🔌 Déconnecté de Graph Memory", border_style="yellow",
+    ))
+
+
+# =============================================================================
+# Backup
+# =============================================================================
+
 def show_backup_list(result: dict):
     """Affiche la liste des backups."""
     backups = result.get("backups", [])

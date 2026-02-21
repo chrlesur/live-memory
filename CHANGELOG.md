@@ -22,6 +22,10 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
   - Arguments `--graph-url`, `--graph-token`, `--ontology`, `--graph-memory-id`
 - **30 outils MCP** (était 26) — 7 catégories (+ graph)
 - Ontologie paramétrable pour graph-memory (défaut: `general`, options: legal, cloud, managed-services, presales)
+- **CLI Click `graph`** — 4 commandes scriptables : `graph connect`, `graph push`, `graph status`, `graph disconnect`
+- **Shell interactif `graph`** — 4 commandes avec help contextuel (`help graph`)
+- **Affichage Rich** — `show_graph_connected`, `show_graph_status` (stats + docs + top entités), `show_graph_push_result`, `show_graph_disconnected`
+- Code mutualisé `display.py` partagé entre CLI Click et Shell (DRY)
 
 ### Changé
 - Module `tools/__init__.py` — Enregistrement du nouveau module `tools/graph.py`

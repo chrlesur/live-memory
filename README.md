@@ -476,6 +476,10 @@ python scripts/mcp_cli.py live note mon-projet observation "Build OK"
 python scripts/mcp_cli.py bank consolidate mon-projet
 python scripts/mcp_cli.py bank read-all mon-projet
 python scripts/mcp_cli.py token create agent-cline read,write
+python scripts/mcp_cli.py graph connect mon-projet URL TOKEN MEM-ID -o general
+python scripts/mcp_cli.py graph push mon-projet
+python scripts/mcp_cli.py graph status mon-projet
+python scripts/mcp_cli.py graph disconnect mon-projet
 ```
 
 ### Shell interactif

@@ -20,6 +20,7 @@ from .display import (
     show_health_result, show_about_result,
     show_space_created, show_space_list, show_space_info, show_rules, show_notes,
     show_bank_list, show_bank_content, show_consolidation_result,
+    show_graph_connected, show_graph_status, show_graph_push_result, show_graph_disconnected,
     show_token_created, show_token_list,
     show_backup_created, show_backup_list,
 )
@@ -48,6 +49,10 @@ SHELL_COMMANDS = {
     "token create": "Créer un token (token create <name> <perms>)",
     "token list": "Lister les tokens",
     "token revoke": "Révoquer un token (token revoke <hash>)",
+    "graph connect": "Connecter à Graph Memory (graph connect <space> <url> <token> <memory_id> [ontology])",
+    "graph push": "Pousser la bank dans le graphe (graph push <space>)",
+    "graph status": "Statut connexion Graph Memory (graph status <space>)",
+    "graph disconnect": "Déconnecter de Graph Memory (graph disconnect <space>)",
     "backup create": "Créer un backup (backup create <space>)",
     "backup list": "Lister les backups",
     "backup restore": "Restaurer (backup restore <id> --confirm)",
@@ -66,6 +71,7 @@ VERB_SUBCOMMANDS = {
     "live":   {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("live ")},
     "bank":   {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("bank ")},
     "token":  {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("token ")},
+    "graph":  {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("graph ")},
     "backup": {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("backup ")},
 }
 
@@ -114,6 +120,12 @@ async def dispatch(client: MCPClient, user_input: str, json_output: bool):
             _show_verb_help("bank")
         else:
             await _handle_bank(client, args, json_output)
+
+    elif cmd == "graph":
+        if not args or args[0] == "help":
+            _show_verb_help("graph")
+        else:
+            await _handle_graph(client, args, json_output)
 
     elif cmd == "token":
         if not args or args[0] == "help":
@@ -241,6 +253,35 @@ async def _handle_token(client, args, json_out):
 
     else:
         show_warning("Usage: token [create|list|revoke] ...")
+
+
+async def _handle_graph(client, args, json_out):
+    """Handler pour les commandes graph."""
+    sub = args[0] if args else ""
+
+    if sub == "connect" and len(args) >= 5:
+        ontology = args[5] if len(args) >= 6 else "general"
+        result = await client.call_tool("graph_connect", {
+            "space_id": args[1], "url": args[2], "token": args[3],
+            "memory_id": args[4], "ontology": ontology,
+        })
+        (show_json if json_out else show_graph_connected)(result) if result.get("status") == "connected" else show_error(result.get("message", "?"))
+
+    elif sub == "push" and len(args) >= 2:
+        console.print("[dim]Push en cours... (peut prendre plusieurs minutes)[/dim]")
+        result = await client.call_tool("graph_push", {"space_id": args[1]})
+        (show_json if json_out else show_graph_push_result)(result) if result.get("status") == "ok" else show_error(result.get("message", "?"))
+
+    elif sub == "status" and len(args) >= 2:
+        result = await client.call_tool("graph_status", {"space_id": args[1]})
+        (show_json if json_out else show_graph_status)(result) if result.get("status") == "ok" else show_error(result.get("message", "?"))
+
+    elif sub == "disconnect" and len(args) >= 2:
+        result = await client.call_tool("graph_disconnect", {"space_id": args[1]})
+        (show_json if json_out else show_graph_disconnected)(result) if result.get("status") == "disconnected" else show_error(result.get("message", "?"))
+
+    else:
+        show_warning("Usage: graph [connect|push|status|disconnect] ...")
 
 
 async def _handle_backup(client, args, json_out):

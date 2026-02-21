@@ -117,6 +117,25 @@ python scripts/mcp_cli.py gc --space-id mon-projet --confirm --delete-only
 python scripts/mcp_cli.py gc --max-age-days 14
 ```
 
+### Graph Bridge
+
+```bash
+# Connecter un space à Graph Memory
+python scripts/mcp_cli.py graph connect mon-projet \
+  https://graph-mem.mcp.cloud-temple.app token_graph MEMORY-ID \
+  --ontology general
+
+# Pousser la bank dans le graphe (delete + re-ingest)
+python scripts/mcp_cli.py graph push mon-projet
+
+# Statut connexion + stats graphe (documents, entités, relations, top entités)
+python scripts/mcp_cli.py graph status mon-projet
+python scripts/mcp_cli.py graph status mon-projet --json
+
+# Déconnecter
+python scripts/mcp_cli.py graph disconnect mon-projet
+```
+
 ### Backup & Restore
 
 ```bash
@@ -166,6 +185,11 @@ live-mem> live search projet "S3"     # Rechercher
 live-mem> bank list projet            # Fichiers bank
 live-mem> bank read projet file.md    # Lire un fichier
 live-mem> bank consolidate projet     # 🧠 Consolider
+
+live-mem> graph connect p url tok MEM # Connecter à Graph Memory
+live-mem> graph push projet           # Pousser la bank dans le graphe
+live-mem> graph status projet         # Stats graphe (docs, entités, relations)
+live-mem> graph disconnect projet     # Déconnecter
 
 live-mem> token list                  # Tokens
 live-mem> backup list                 # Backups

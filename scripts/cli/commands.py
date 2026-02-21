@@ -21,6 +21,7 @@ from .display import (
     show_health_result, show_about_result,
     show_space_created, show_space_list, show_space_info, show_rules, show_notes,
     show_bank_list, show_bank_content, show_consolidation_result,
+    show_graph_connected, show_graph_status, show_graph_push_result, show_graph_disconnected,
     show_token_created, show_token_list,
     show_backup_created, show_backup_list,
 )
@@ -38,7 +39,7 @@ def _run_tool(ctx, tool_name, args, on_success, json_flag=False):
             result = await client.call_tool(tool_name, args)
             if json_flag:
                 show_json(result)
-            elif result.get("status") in ("ok", "created", "deleted"):
+            elif result.get("status") in ("ok", "created", "deleted", "connected", "disconnected"):
                 on_success(result)
             else:
                 show_error(result.get("message", f"Erreur: {result.get('status', '?')}"))
@@ -345,6 +346,61 @@ def backup_delete_cmd(ctx, backup_id, confirm):
     """Supprimer un backup."""
     _run_tool(ctx, "backup_delete", {"backup_id": backup_id, "confirm": confirm},
               lambda r: show_success(f"Supprimé: {r.get('files_deleted', 0)} fichiers"))
+
+
+# ─────────────────────────────────────────────────────────────
+# Graph Bridge (sous-groupe)
+# ─────────────────────────────────────────────────────────────
+
+@cli.group("graph")
+def graph_grp():
+    """🌉 Pont vers Graph Memory (mémoire long terme)."""
+    pass
+
+
+@graph_grp.command("connect")
+@click.argument("space_id")
+@click.argument("url")
+@click.argument("graph_token")
+@click.argument("memory_id")
+@click.option("--ontology", "-o", default="general",
+              help="Ontologie Graph Memory (general, legal, cloud, managed-services, presales)")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def graph_connect_cmd(ctx, space_id, url, graph_token, memory_id, ontology, jflag):
+    """Connecter un space à Graph Memory."""
+    _run_tool(ctx, "graph_connect", {
+        "space_id": space_id, "url": url, "token": graph_token,
+        "memory_id": memory_id, "ontology": ontology,
+    }, show_graph_connected, jflag)
+
+
+@graph_grp.command("push")
+@click.argument("space_id")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def graph_push_cmd(ctx, space_id, jflag):
+    """📤 Pousser la bank dans Graph Memory (delete + re-ingest)."""
+    console.print("[dim]Push en cours... (peut prendre plusieurs minutes)[/dim]")
+    _run_tool(ctx, "graph_push", {"space_id": space_id}, show_graph_push_result, jflag)
+
+
+@graph_grp.command("status")
+@click.argument("space_id")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def graph_status_cmd(ctx, space_id, jflag):
+    """📊 Statut de la connexion Graph Memory (stats, documents, entités)."""
+    _run_tool(ctx, "graph_status", {"space_id": space_id}, show_graph_status, jflag)
+
+
+@graph_grp.command("disconnect")
+@click.argument("space_id")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def graph_disconnect_cmd(ctx, space_id, jflag):
+    """🔌 Déconnecter un space de Graph Memory."""
+    _run_tool(ctx, "graph_disconnect", {"space_id": space_id}, show_graph_disconnected, jflag)
 
 
 # ─────────────────────────────────────────────────────────────
