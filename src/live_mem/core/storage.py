@@ -34,6 +34,9 @@ from botocore.exceptions import ClientError
 
 from ..config import get_settings
 
+import logging
+logger = logging.getLogger("live_mem.storage")
+
 
 class StorageService:
     """
@@ -88,11 +91,8 @@ class StorageService:
             config=config_v4,
         )
 
-        print(
-            f"📦 StorageService initialisé — bucket={self.bucket} "
-            f"endpoint={self._endpoint}",
-            file=sys.stderr,
-        )
+        logger.info("StorageService initialisé — bucket=%s endpoint=%s",
+                     self.bucket, self._endpoint)
 
     # ─────────────────────────────────────────────────────────────
     # Helpers async — wrappent les appels synchrones boto3

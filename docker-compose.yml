@@ -45,13 +45,16 @@ services:
   # ─────────────────────────────────────────────────────────────
   live-mem-service:
     build: .
+    image: live-memory:latest
     # PAS de "ports:" — le WAF est le seul point d'entrée
     env_file: .env
     restart: unless-stopped
     networks:
       - live-mem-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; r=httpx.get('http://localhost:8002/health'); assert r.status_code==200"]
+      # Vérification TCP : le port 8002 écoute-t-il ?
+      # FastMCP SSE n'expose pas de /health HTTP classique.
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost', 8002), timeout=2); s.close()"]
       interval: 30s
       timeout: 5s
       retries: 3

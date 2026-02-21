@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -42,7 +42,7 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   25 outils • Auth Bearer      │
+          │   26 outils • Auth Bearer      │
           │   Consolidation LLM            │
           └──────┬──────────┬──────────────┘
                  │          │
@@ -58,7 +58,7 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
 
 ## ✨ Fonctionnalités
 
-### 25 outils MCP
+### 26 outils MCP
 
 | Catégorie       | Outils                                                                                                     | Description                 |
 | --------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------- |
@@ -67,9 +67,9 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
 | **Live** (3)    | `live_note`, `live_read`, `live_search`                                                                    | Notes en temps réel         |
 | **Bank** (4)    | `bank_read`, `bank_read_all`, `bank_list`, `bank_consolidate`                                              | Memory Bank consolidée      |
 | **Backup** (5)  | `backup_create`, `backup_list`, `backup_restore`, `backup_download`, `backup_delete`                       | Sauvegarde & restauration   |
-| **Admin** (4)   | `admin_create_token`, `admin_list_tokens`, `admin_revoke_token`, `admin_update_token`                      | Gestion des tokens          |
+| **Admin** (5)   | `admin_create_token`, `admin_list_tokens`, `admin_revoke_token`, `admin_update_token`, `admin_gc_notes`    | Tokens + Garbage Collector  |
 
-> **Statut** : ✅ 25/25 outils implémentés, pipeline E2E validé sur infrastructure Cloud Temple réelle (S3 + LLMaaS)
+> **Statut** : ✅ 26/26 outils implémentés, pipeline E2E validé via Docker Compose + WAF sur infrastructure Cloud Temple (S3 + LLMaaS)
 
 ### Points forts
 
@@ -117,11 +117,18 @@ cd src && python -m live_mem.server
 ### Vérification rapide
 
 ```bash
-# Test S3 + LLMaaS + serveur
-python chantier/test_phase1.py
+# Recette complète via Docker Compose + WAF
+docker compose build && docker compose up -d
+python scripts/test_recette.py
 
-# Test E2E complet (create → notes → consolidate → bank → cleanup)
-python chantier/test_e2e.py
+# Test multi-agents (3 agents collaborent)
+python scripts/test_multi_agents.py
+
+# Test du Garbage Collector
+python scripts/test_gc.py
+
+# Mode pas-à-pas (démo interactive)
+python scripts/test_multi_agents.py --step
 ```
 
 ---
@@ -152,20 +159,23 @@ live-mem/
 │       │   ├── live.py     #   Notes live (append-only)
 │       │   ├── consolidator.py # Pipeline LLM
 │       │   ├── tokens.py   #   Gestion tokens SHA-256
-│       │   └── backup.py   #   Snapshots S3
+│       │   ├── backup.py   #   Snapshots S3
+│       │   └── gc.py       #   Garbage Collector
 │       └── tools/          # Outils MCP par catégorie
 │           ├── system.py   #   2 outils
 │           ├── space.py    #   7 outils
 │           ├── live.py     #   3 outils
 │           ├── bank.py     #   4 outils
 │           ├── backup.py   #   5 outils
-│           └── admin.py    #   4 outils
-├── scripts/                # 🖥️ CLI + Shell interactif
+│           └── admin.py    #   5 outils (tokens + GC)
+├── scripts/                # 🖥️ CLI + Shell + Tests
 ├── waf/                    # 🛡️ WAF Caddy + Coraza
 ├── .env.example
 ├── Dockerfile
 ├── docker-compose.yml
-├── VERSION                 # 0.1.0
+├── VERSION                 # 0.2.0
+├── CHANGELOG.md            # 📋 Historique des versions
+├── FAQ.md                  # ❓ Questions fréquentes
 └── README.md               # ← Vous êtes ici
 ```
 
@@ -251,4 +261,4 @@ Apache License 2.0 — Voir [LICENSE](LICENSE)
 
 ---
 
-*Live Memory v0.1.0 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.2.0 — Mémoire de travail partagée pour agents IA collaboratifs*

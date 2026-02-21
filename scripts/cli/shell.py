@@ -60,6 +60,16 @@ SHELL_COMMANDS = {
 # Dispatcher de commandes
 # =============================================================================
 
+# Sous-commandes par verbe (pour help contextuel)
+VERB_SUBCOMMANDS = {
+    "space":  {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("space ")},
+    "live":   {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("live ")},
+    "bank":   {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("bank ")},
+    "token":  {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("token ")},
+    "backup": {k.split(" ",1)[1]: v for k, v in SHELL_COMMANDS.items() if k.startswith("backup ")},
+}
+
+
 async def dispatch(client: MCPClient, user_input: str, json_output: bool):
     """Route une commande vers le bon handler."""
     parts = user_input.strip().split()
@@ -68,6 +78,14 @@ async def dispatch(client: MCPClient, user_input: str, json_output: bool):
 
     cmd = parts[0].lower()
     args = parts[1:]
+
+    # ── Help (global ou contextuel) ──
+    if cmd == "help":
+        if args and args[0] in VERB_SUBCOMMANDS:
+            _show_verb_help(args[0])
+        else:
+            _show_help()
+        return
 
     # ── System ──
     if cmd == "health":
@@ -78,28 +96,36 @@ async def dispatch(client: MCPClient, user_input: str, json_output: bool):
         result = await client.call_tool("system_about", {})
         (show_json if json_output else show_about_result)(result)
 
-    # ── Space ──
-    elif cmd == "space" and args:
-        await _handle_space(client, args, json_output)
+    # ── Verbes avec sous-commandes ──
+    elif cmd == "space":
+        if not args or args[0] == "help":
+            _show_verb_help("space")
+        else:
+            await _handle_space(client, args, json_output)
 
-    # ── Live ──
-    elif cmd == "live" and args:
-        await _handle_live(client, args, json_output)
+    elif cmd == "live":
+        if not args or args[0] == "help":
+            _show_verb_help("live")
+        else:
+            await _handle_live(client, args, json_output)
 
-    # ── Bank ──
-    elif cmd == "bank" and args:
-        await _handle_bank(client, args, json_output)
+    elif cmd == "bank":
+        if not args or args[0] == "help":
+            _show_verb_help("bank")
+        else:
+            await _handle_bank(client, args, json_output)
 
-    # ── Token ──
-    elif cmd == "token" and args:
-        await _handle_token(client, args, json_output)
+    elif cmd == "token":
+        if not args or args[0] == "help":
+            _show_verb_help("token")
+        else:
+            await _handle_token(client, args, json_output)
 
-    # ── Backup ──
-    elif cmd == "backup" and args:
-        await _handle_backup(client, args, json_output)
-
-    elif cmd == "help":
-        _show_help()
+    elif cmd == "backup":
+        if not args or args[0] == "help":
+            _show_verb_help("backup")
+        else:
+            await _handle_backup(client, args, json_output)
 
     else:
         show_warning(f"Commande inconnue: '{user_input}'. Tapez 'help'.")
@@ -248,7 +274,7 @@ async def _handle_backup(client, args, json_out):
 # =============================================================================
 
 def _show_help():
-    """Affiche l'aide du shell."""
+    """Affiche l'aide globale du shell."""
     from rich.table import Table
     table = Table(title="🐚 Commandes Live Memory", show_header=True)
     table.add_column("Commande", style="cyan bold", min_width=25)
@@ -257,6 +283,22 @@ def _show_help():
         table.add_row(cmd, desc)
     table.add_row("", "")
     table.add_row("[dim]--json[/dim]", "[dim]Ajouter pour la sortie JSON[/dim]")
+    table.add_row("[dim]help <verbe>[/dim]", "[dim]Aide d'un verbe (ex: help space)[/dim]")
+    console.print(table)
+
+
+def _show_verb_help(verb: str):
+    """Affiche l'aide d'un verbe spécifique (sous-commandes)."""
+    from rich.table import Table
+    subs = VERB_SUBCOMMANDS.get(verb, {})
+    if not subs:
+        show_warning(f"Pas de sous-commandes pour '{verb}'.")
+        return
+    table = Table(title=f"📖 {verb} — sous-commandes", show_header=True)
+    table.add_column("Commande", style="cyan bold", min_width=15)
+    table.add_column("Usage")
+    for sub, desc in subs.items():
+        table.add_row(f"{verb} {sub}", desc)
     console.print(table)
 
 

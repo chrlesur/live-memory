@@ -68,36 +68,30 @@ class MCPClient:
         on_progress: Optional[Callable] = None,
     ) -> dict:
         """
-        Appelle un outil MCP.
+        Appelle un outil MCP avec handshake initialize complet.
+
+        Le protocole MCP exige :
+        1. Client → initialize (capabilities + clientInfo)
+        2. Serveur → réponse initialize
+        3. Client → notifications/initialized
+        4. Client → tools/call
 
         Args:
             tool_name: Nom de l'outil (ex: "system_health")
             arguments: Paramètres de l'outil
-            on_progress: Callback optionnel pour les notifications (async callable)
+            on_progress: Callback optionnel pour les notifications
 
         Returns:
             Le résultat de l'outil (dict)
         """
-        self._request_id += 1
-
-        # Construire la requête JSON-RPC
-        request = {
-            "jsonrpc": "2.0",
-            "id": self._request_id,
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": arguments,
-            },
-        }
-
         async with httpx.AsyncClient(
             timeout=self.timeout,
             headers=self.headers,
         ) as client:
-            # 1. Se connecter au SSE pour obtenir l'endpoint
+            # ── Variables partagées entre SSE listener et requêtes ──
             session_url = None
-            response_future = asyncio.get_event_loop().create_future()
+            responses = asyncio.Queue()
+            init_done = asyncio.Event()
 
             async def _listen_sse():
                 nonlocal session_url
@@ -113,7 +107,6 @@ class MCPClient:
                                     session_url = endpoint
                                 else:
                                     session_url = f"{self.base_url}{endpoint}"
-                                # Continuer pour écouter la réponse
                                 continue
 
                             if sse.event == "message":
@@ -131,21 +124,18 @@ class MCPClient:
                                         await on_progress(msg)
                                     continue
 
-                                # Réponse finale
+                                # Réponse (initialize ou tools/call)
                                 if "result" in data or "error" in data:
-                                    if not response_future.done():
-                                        response_future.set_result(data)
-                                    return
+                                    await responses.put(data)
 
                 except Exception as e:
-                    if not response_future.done():
-                        response_future.set_exception(e)
+                    await responses.put({"error": {"message": str(e)}})
 
-            # Lancer l'écoute SSE en tâche de fond
+            # ── Lancer l'écoute SSE en tâche de fond ──
             sse_task = asyncio.create_task(_listen_sse())
 
-            # Attendre que l'endpoint soit disponible
-            for _ in range(50):  # 5 secondes max
+            # Attendre l'endpoint
+            for _ in range(50):
                 if session_url:
                     break
                 await asyncio.sleep(0.1)
@@ -156,19 +146,61 @@ class MCPClient:
                     f"Timeout: pas d'endpoint SSE depuis {self.base_url}/sse"
                 )
 
-            # 2. Envoyer la requête
-            await client.post(session_url, json=request, headers=self.headers)
+            # ── 1. Handshake : initialize ──
+            self._request_id += 1
+            init_request = {
+                "jsonrpc": "2.0",
+                "id": self._request_id,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {
+                        "name": "live-mem-recette",
+                        "version": "1.0.0",
+                    },
+                },
+            }
+            await client.post(session_url, json=init_request, headers=self.headers)
 
-            # 3. Attendre la réponse (via SSE)
+            # Attendre la réponse initialize
             try:
-                response = await asyncio.wait_for(response_future, timeout=self.timeout)
+                init_resp = await asyncio.wait_for(responses.get(), timeout=10)
+            except asyncio.TimeoutError:
+                sse_task.cancel()
+                raise ConnectionError("Timeout handshake initialize")
+
+            # ── 2. Notification initialized ──
+            notif = {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+            }
+            await client.post(session_url, json=notif, headers=self.headers)
+            await asyncio.sleep(0.1)  # Laisser le serveur traiter
+
+            # ── 3. Appel de l'outil ──
+            self._request_id += 1
+            tool_request = {
+                "jsonrpc": "2.0",
+                "id": self._request_id,
+                "method": "tools/call",
+                "params": {
+                    "name": tool_name,
+                    "arguments": arguments,
+                },
+            }
+            await client.post(session_url, json=tool_request, headers=self.headers)
+
+            # ── 4. Attendre la réponse ──
+            try:
+                response = await asyncio.wait_for(responses.get(), timeout=self.timeout)
             except asyncio.TimeoutError:
                 sse_task.cancel()
                 raise TimeoutError(f"Timeout après {self.timeout}s pour '{tool_name}'")
 
             sse_task.cancel()
 
-            # 4. Extraire le résultat
+            # ── 5. Extraire le résultat ──
             if "error" in response:
                 return {
                     "status": "error",

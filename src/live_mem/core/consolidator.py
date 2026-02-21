@@ -20,6 +20,7 @@ import sys
 import re
 import json
 import time
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -27,6 +28,8 @@ from openai import AsyncOpenAI
 
 from ..config import get_settings
 from .storage import get_storage
+
+logger = logging.getLogger("live_mem.consolidator")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -98,6 +101,8 @@ class ConsolidatorService:
         """
         t0 = time.monotonic()
         storage = get_storage()
+        agent_label = agent or "(all)"
+        logger.info("Consolidation start — space=%s agent=%s", space_id, agent_label)
 
         # ── Étape 1 : Collecter les inputs ────────────────
         inputs = await self._collect_inputs(space_id, agent=agent)
@@ -136,6 +141,16 @@ class ConsolidatorService:
         )
 
         write_result["duration_seconds"] = round(time.monotonic() - t0, 1)
+        logger.info(
+            "Consolidation done — space=%s agent=%s notes=%d files_created=%d "
+            "files_updated=%d tokens=%d duration=%.1fs",
+            space_id, agent_label,
+            write_result.get("notes_processed", 0),
+            write_result.get("bank_files_created", 0),
+            write_result.get("bank_files_updated", 0),
+            write_result.get("llm_tokens_used", 0),
+            write_result["duration_seconds"],
+        )
         return write_result
 
     async def _collect_inputs(self, space_id: str, agent: str = "") -> dict:
@@ -301,10 +316,7 @@ IMPORTANT :
                 except json.JSONDecodeError:
                     if attempt == 0:
                         # Retry avec un rappel plus explicite
-                        print(
-                            f"⚠️  LLM: JSON invalide (attempt {attempt+1}), retry...",
-                            file=sys.stderr,
-                        )
+                        logger.warning("LLM: JSON invalide (attempt %d), retry...", attempt+1)
                         messages.append({"role": "assistant", "content": raw_content})
                         messages.append({
                             "role": "user",

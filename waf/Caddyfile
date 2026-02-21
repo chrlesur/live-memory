@@ -71,12 +71,14 @@
 	# Rate Limiting par IP (appliqué AVANT le WAF)
 	# =========================================================================
 	# Limites calibrées pour des agents IA :
-	# - SSE : 10 nouvelles connexions/min (1 connexion dure des heures)
-	# - Messages MCP : 60 appels d'outils/min (burst d'un agent actif)
-	# - API REST : 30 requêtes/min (interface web)
-	# - Global : 200 requêtes/min (toutes routes confondues)
+	# - SSE : 60 nouvelles connexions/min (tests et multi-agents)
+	# - Messages MCP : 300 appels d'outils/min (burst tests/consolidation)
+	# - API REST : 60 requêtes/min (interface web)
+	# - Global : 600 requêtes/min (toutes routes confondues)
 	#
-	# Adapter ces limites selon votre cas d'usage.
+	# Note : un agent optimal maintient 1 connexion SSE longue.
+	# Ces limites sont volontairement permissives pour les tests
+	# et les scénarios multi-agents. Réduire en production si besoin.
 	# =========================================================================
 	rate_limit {
 		zone sse {
@@ -84,7 +86,7 @@
 				path /sse*
 			}
 			key {remote_host}
-			events 10
+			events 60
 			window 1m
 		}
 		zone messages {
@@ -92,7 +94,7 @@
 				path /messages/*
 			}
 			key {remote_host}
-			events 60
+			events 300
 			window 1m
 		}
 		zone api {
@@ -100,12 +102,12 @@
 				path /api/*
 			}
 			key {remote_host}
-			events 30
+			events 60
 			window 1m
 		}
 		zone global {
 			key {remote_host}
-			events 200
+			events 600
 			window 1m
 		}
 	}
@@ -118,8 +120,7 @@
 	# Coraza bufférise les réponses → incompatible avec le streaming SSE.
 	# =========================================================================
 	handle /sse* {
-		# ⚠️ Adapter "mon-mcp" au nom de votre service dans docker-compose.yml
-		reverse_proxy mon-mcp:8002 {
+		reverse_proxy live-mem-service:8002 {
 			flush_interval -1
 			transport http {
 				read_timeout 0
@@ -137,7 +138,7 @@
 	# Certains outils peuvent prendre plusieurs minutes.
 	# =========================================================================
 	handle /messages/* {
-		reverse_proxy mon-mcp:8002 {
+		reverse_proxy live-mem-service:8002 {
 			transport http {
 				read_timeout 1800s
 				write_timeout 1800s
@@ -179,7 +180,7 @@
 		@api {
 			path /api/*
 		}
-		reverse_proxy @api mon-mcp:8002 {
+		reverse_proxy @api live-mem-service:8002 {
 			transport http {
 				read_timeout 300s
 				write_timeout 300s
@@ -188,7 +189,7 @@
 		}
 
 		# Tout le reste — timeout standard
-		reverse_proxy mon-mcp:8002
+		reverse_proxy live-mem-service:8002
 	}
 
 	# =========================================================================

@@ -180,7 +180,7 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def bank_consolidate(space_id: str) -> dict:
+    async def bank_consolidate(space_id: str, agent: str = "") -> dict:
         """
         Déclenche la consolidation : le LLM lit les notes live et produit
         les fichiers bank mis à jour selon les rules.
@@ -197,26 +197,57 @@ def register(mcp: FastMCP) -> int:
 
         Args:
             space_id: Identifiant de l'espace à consolider
+            agent: Nom de l'agent dont consolider les notes.
+                   Vide = consolide TOUTES les notes (admin requis).
+                   Si l'agent correspond au token → write suffit.
+                   Si l'agent est différent → admin requis
+                   (consolider pour un autre agent).
 
         Returns:
             Métriques de consolidation (notes traitées, fichiers MAJ, tokens)
         """
-        from ..auth.context import check_access, check_write_permission, get_current_agent_name
+        from ..auth.context import (
+            check_access, check_write_permission,
+            check_admin_permission, get_current_agent_name,
+        )
         from ..core.locks import get_lock_manager
         from ..core.consolidator import get_consolidator
 
         try:
-            # Vérifier accès + permission write
+            # Vérifier accès à l'espace
             access_err = check_access(space_id)
             if access_err:
                 return access_err
 
-            write_err = check_write_permission()
-            if write_err:
-                return write_err
-
-            # Identifier l'agent appelant (chaque agent ne consolide que ses notes)
+            # Vérifier les permissions selon le cas :
+            # - agent="" (tout) ou agent différent du caller → admin requis
+            # - agent = caller's name → write suffit
             caller = get_current_agent_name()
+            if agent and agent == caller:
+                # L'agent consolide ses propres notes → write suffit
+                write_err = check_write_permission()
+                if write_err:
+                    return write_err
+            else:
+                # Consolider tout ou pour un autre agent → admin requis
+                admin_err = check_admin_permission()
+                if admin_err:
+                    # Fallback : si pas admin mais write, permettre
+                    # uniquement si agent vide (backward compat)
+                    write_err = check_write_permission()
+                    if write_err:
+                        return write_err
+                    # write OK mais pas admin : forcer le filtre sur le caller
+                    if agent and agent != caller:
+                        return {
+                            "status": "error",
+                            "message": (
+                                f"Permission 'admin' requise pour consolider "
+                                f"les notes de l'agent '{agent}'. "
+                                f"Vous pouvez consolider vos propres notes "
+                                f"avec agent='{caller}'."
+                            ),
+                        }
 
             # Vérifier le lock de consolidation
             lock = get_lock_manager().consolidation(space_id)
@@ -229,9 +260,11 @@ def register(mcp: FastMCP) -> int:
                     ),
                 }
 
-            # Exécuter la consolidation sous lock (filtrée par agent)
+            # Exécuter la consolidation sous lock
+            # agent="" → consolide TOUTES les notes (pas de filtre)
+            # agent="mon-agent" → consolide uniquement les notes de cet agent
             async with lock:
-                return await get_consolidator().consolidate(space_id, agent=caller)
+                return await get_consolidator().consolidate(space_id, agent=agent)
 
         except Exception as e:
             return {"status": "error", "message": str(e)}

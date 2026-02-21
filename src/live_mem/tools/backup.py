@@ -74,13 +74,19 @@ def register(mcp: FastMCP) -> int:
         Returns:
             Liste des backups avec backup_id et timestamp
         """
-        from ..auth.context import current_token_info
+        from ..auth.context import current_token_info, check_access
         from ..core.backup import get_backup_service
 
         try:
             token_info = current_token_info.get()
             if token_info is None:
                 return {"status": "error", "message": "Authentification requise"}
+
+            # Si un espace est spécifié, vérifier l'accès
+            if space_id:
+                access_err = check_access(space_id)
+                if access_err:
+                    return access_err
 
             return await get_backup_service().list_backups(space_id)
         except Exception as e:
@@ -130,13 +136,19 @@ def register(mcp: FastMCP) -> int:
         Returns:
             Archive base64, taille, nombre de fichiers
         """
-        from ..auth.context import current_token_info
+        from ..auth.context import current_token_info, check_access
         from ..core.backup import get_backup_service
 
         try:
             token_info = current_token_info.get()
             if token_info is None:
                 return {"status": "error", "message": "Authentification requise"}
+
+            # Extraire le space_id du backup_id ("space_id/timestamp")
+            space_id = backup_id.split("/")[0] if "/" in backup_id else backup_id
+            access_err = check_access(space_id)
+            if access_err:
+                return access_err
 
             return await get_backup_service().download(backup_id)
         except Exception as e:

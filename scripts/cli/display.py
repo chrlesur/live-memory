@@ -77,11 +77,31 @@ def show_about_result(result: dict):
     ))
     tools = result.get("tools", [])
     if tools:
-        table = Table(show_header=True)
-        table.add_column("Nom", style="cyan bold")
-        table.add_column("Description", style="dim", max_width=60)
+        # Grouper par catégorie (préfixe avant le _)
+        categories = {}
         for t in tools:
-            table.add_row(t.get("name", "?"), t.get("description", ""))
+            name = t.get("name", "?")
+            cat = name.split("_")[0].capitalize() if "_" in name else "Other"
+            categories.setdefault(cat, []).append(t)
+
+        table = Table(show_header=True, title="Outils MCP", title_style="bold")
+        table.add_column("Cat.", style="bold", width=8)
+        table.add_column("Outil", style="cyan bold", width=20)
+        table.add_column("Description", style="dim", max_width=55)
+
+        for cat, cat_tools in categories.items():
+            for i, t in enumerate(cat_tools):
+                # Extraire la première ligne non-vide de la description
+                desc = t.get("description", "")
+                first_line = ""
+                for line in desc.strip().split("\n"):
+                    line = line.strip()
+                    if line and not line.startswith("Args:") and not line.startswith("Returns:"):
+                        first_line = line[:55]
+                        break
+                cat_label = f"[magenta]{cat}[/magenta]" if i == 0 else ""
+                table.add_row(cat_label, t.get("name", "?"), first_line)
+
         console.print(table)
 
 

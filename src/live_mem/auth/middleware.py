@@ -15,9 +15,12 @@ L'AuthMiddleware :
 import sys
 import time
 import hashlib
+import logging
 from typing import Optional
 from .context import current_token_info
 from ..config import get_settings
+
+logger = logging.getLogger("live_mem.auth")
 
 
 class AuthMiddleware:
@@ -107,7 +110,7 @@ class AuthMiddleware:
         except Exception as e:
             # Si S3 n'est pas configuré ou tokens.json n'existe pas,
             # on continue silencieusement (le token sera invalide)
-            print(f"⚠️  Auth: TokenService error: {e}", file=sys.stderr)
+            logger.warning("TokenService error: %s", e)
 
         return None  # Token invalide
 
@@ -143,10 +146,7 @@ class LoggingMiddleware:
             elapsed = round((time.monotonic() - t0) * 1000, 1)
             # Ne pas logger les health checks pour éviter le bruit
             if path not in ("/health",):
-                print(
-                    f"📡 {method} {path} → {status_code} ({elapsed}ms)",
-                    file=sys.stderr,
-                )
+                logger.info("%s %s → %s (%.0fms)", method, path, status_code, elapsed)
 
 
 class HostNormalizerMiddleware:

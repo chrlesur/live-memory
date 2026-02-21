@@ -1,6 +1,6 @@
-# 🖥️ Live Memory CLI & Shell
+# 🖥️ Live Memory CLI, Shell & Tests
 
-> CLI scriptable et shell interactif pour le serveur MCP Live Memory.
+> CLI scriptable, shell interactif et scripts de test pour Live Memory MCP.
 
 ---
 
@@ -101,6 +101,22 @@ python scripts/mcp_cli.py token list
 python scripts/mcp_cli.py token revoke sha256:a1b2c3...
 ```
 
+### Garbage Collector
+
+```bash
+# Dry-run : scanner les notes orphelines (> 7 jours)
+python scripts/mcp_cli.py gc --space-id mon-projet
+
+# Consolider les notes orphelines dans la bank (via LLM)
+python scripts/mcp_cli.py gc --space-id mon-projet --confirm
+
+# Supprimer sans consolider (perte de données !)
+python scripts/mcp_cli.py gc --space-id mon-projet --confirm --delete-only
+
+# Scanner tous les espaces
+python scripts/mcp_cli.py gc --max-age-days 14
+```
+
 ### Backup & Restore
 
 ```bash
@@ -160,22 +176,66 @@ live-mem> quit                        # Quitter
 
 ---
 
+---
+
+## 🧪 Scripts de test
+
+### Recette simple (1 agent)
+
+```bash
+# Test E2E complet via Docker Compose + WAF
+docker compose up -d
+python scripts/test_recette.py
+
+# Garder l'espace pour inspection
+python scripts/test_recette.py --no-cleanup
+
+# Mode pas-à-pas (pause entre chaque étape)
+python scripts/test_recette.py --step
+```
+
+Simule un agent sysadmin mettant à jour Ubuntu 22.04 → 24.04 :
+token → espace → rules → 12 notes → consolidation LLM → 6 fichiers bank → cleanup
+
+### Multi-agents (3 agents)
+
+```bash
+python scripts/test_multi_agents.py
+python scripts/test_multi_agents.py --step --no-cleanup
+```
+
+3 agents collaborent : agent-infra (OS), agent-dev (apps), agent-qa (validation).
+Chaque agent écrit ses notes et consolide indépendamment. La bank évolue progressivement.
+
+### Garbage Collector
+
+```bash
+python scripts/test_gc.py
+```
+
+Crée des notes orphelines, teste le dry-run et la consolidation forcée GC.
+
+---
+
 ## Architecture CLI
 
 ```
 scripts/
-├── mcp_cli.py          # Point d'entrée (importe cli depuis commands.py)
-├── README.md           # ← Vous êtes ici
+├── mcp_cli.py              # Point d'entrée CLI Click
+├── test_recette.py         # 🧪 Recette E2E (1 agent, 12 notes)
+├── test_multi_agents.py    # 🧪 Multi-agents (3 agents collaborent)
+├── test_gc.py              # 🧪 Test du Garbage Collector
+├── README.md               # ← Vous êtes ici
 └── cli/
-    ├── __init__.py     # Config (BASE_URL, TOKEN)
-    ├── client.py       # MCPClient HTTP/SSE (200 lignes)
-    ├── commands.py     # Commandes Click (359 lignes)
-    ├── display.py      # Affichage Rich (258 lignes)
-    └── shell.py        # Shell interactif (307 lignes)
+    ├── __init__.py         # Config (BASE_URL, TOKEN)
+    ├── client.py           # MCPClient HTTP/SSE + handshake MCP
+    ├── commands.py         # Commandes Click (359 lignes)
+    ├── display.py          # Affichage Rich (258 lignes)
+    └── shell.py            # Shell interactif (307 lignes)
 ```
 
 **Pattern** : Chaque commande appelle un outil MCP via `MCPClient.call_tool()` puis affiche le résultat via `display.py`. Les fonctions `show_xxx()` sont partagées entre CLI et Shell (DRY).
 
 ---
 
-*Live Memory CLI v0.1.0*
+*Live Memory CLI v0.2.0*

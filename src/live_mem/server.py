@@ -22,11 +22,32 @@ Usage :
 
 import sys
 import time
+import logging
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 from .config import get_settings
+
+# ─────────────────────────────────────────────────────────────
+# Configuration du logging (stderr uniquement, jamais stdout)
+# Format : timestamp level [module] message
+# ─────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stderr,
+)
+# Réduire le bruit des librairies tierces
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("boto3").setLevel(logging.WARNING)
+logging.getLogger("botocore").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+
+logger = logging.getLogger("live_mem")
 
 # =============================================================================
 # Instance FastMCP
@@ -118,27 +139,52 @@ def main():
         "Admin":  [n for n in tool_names if n.startswith("admin_")],
     }
 
-    # Construire la bannière de démarrage
-    banner_lines = []
+    # Construire les lignes de contenu de la bannière
+    content_lines = []
+    content_lines.append(f"  Live Memory MCP Server v{version}")
+    content_lines.append("")
+    content_lines.append(f"  🔧 {len(tool_names)} outils MCP :")
     for cat, names in categories.items():
         if names:
-            banner_lines.append(f"    {cat:8s}: {', '.join(names)}")
+            content_lines.append(f"     {cat:7s}: {', '.join(names)}")
+    content_lines.append("")
+    host = settings.mcp_server_host
+    port = settings.mcp_server_port
+    content_lines.append(f"  🌐 http://{host}:{port}")
+    content_lines.append(f"  📡 http://{host}:{port}/sse")
 
-    banner_tools = "\n".join(banner_lines) if banner_lines else "    (aucun)"
+    # Calculer la largeur du cadre (largeur max + marges)
+    # Note : les emoji comptent pour 2 colonnes en affichage terminal
+    def _display_len(s: str) -> int:
+        """Longueur d'affichage (emoji/wide chars = 2 colonnes)."""
+        import unicodedata
+        length = 0
+        for ch in s:
+            eaw = unicodedata.east_asian_width(ch)
+            if eaw in ("W", "F"):
+                length += 2
+            elif unicodedata.category(ch).startswith("So"):
+                # Symboles (emoji non-CJK comme 🔧🌐📡)
+                length += 2
+            else:
+                length += 1
+        return length
 
-    print(f"""
-╔══════════════════════════════════════════════════╗
-║       Live Memory MCP Server v{version:<17s}  ║
-╠══════════════════════════════════════════════════╣
-║                                                  ║
-║  🔧 {len(tool_names)} outils MCP :                              ║
-{banner_tools}
-║                                                  ║
-║  🌐 http://{settings.mcp_server_host}:{settings.mcp_server_port:<5d}                          ║
-║  📡 http://{settings.mcp_server_host}:{settings.mcp_server_port:<5d}/sse                       ║
-║                                                  ║
-╚══════════════════════════════════════════════════╝
-""", file=sys.stderr)
+    inner_width = max(_display_len(line) for line in content_lines) + 2
+    inner_width = max(inner_width, 50)  # Minimum 50 colonnes
+
+    # Construire la bannière avec cadre
+    sep = "═" * inner_width
+    banner = f"\n╔{sep}╗\n"
+    for i, line in enumerate(content_lines):
+        pad = inner_width - _display_len(line)
+        banner += f"║{line}{' ' * pad}║\n"
+        # Séparateur après le titre
+        if i == 0:
+            banner += f"╠{sep}╣\n"
+    banner += f"╚{sep}╝\n"
+
+    print(banner, file=sys.stderr)
 
     # Créer l'app ASGI avec middlewares et démarrer Uvicorn
     app = create_app()

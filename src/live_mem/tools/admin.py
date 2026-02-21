@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Outils MCP — Catégorie Admin (4 outils).
+Outils MCP — Catégorie Admin (5 outils).
 
-Gestion des tokens d'authentification.
+Gestion des tokens d'authentification et maintenance.
 
 Permissions :
     - admin_create_token 👑 (admin) — Crée un token
     - admin_list_tokens  👑 (admin) — Liste les tokens
     - admin_revoke_token 👑 (admin) — Révoque un token
     - admin_update_token 👑 (admin) — Modifie un token
+    - admin_gc_notes     👑 (admin) — GC des notes orphelines
 
 Tous les outils admin requièrent la permission "admin".
 Voir AUTH_AND_COLLABORATION.md pour le modèle de tokens.
@@ -19,7 +20,7 @@ from mcp.server.fastmcp import FastMCP
 
 def register(mcp: FastMCP) -> int:
     """
-    Enregistre les 4 outils admin sur l'instance MCP.
+    Enregistre les 5 outils admin sur l'instance MCP.
 
     Args:
         mcp: Instance FastMCP
@@ -146,4 +147,76 @@ def register(mcp: FastMCP) -> int:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    return 4  # Nombre d'outils enregistrés
+    @mcp.tool()
+    async def admin_gc_notes(
+        space_id: str = "",
+        max_age_days: int = 7,
+        confirm: bool = False,
+        delete_only: bool = False,
+    ) -> dict:
+        """
+        Garbage Collector : consolide ou supprime les notes orphelines.
+
+        Les notes live non consolidées par un agent disparu s'accumulent.
+        Cet outil les identifie (plus vieilles que max_age_days).
+
+        3 modes :
+        - confirm=False (défaut) : DRY-RUN — scanne et rapporte
+        - confirm=True : CONSOLIDE les notes dans la bank via LLM
+          (ajoute une notice "⚠️ GC consolidation forcée" dans chaque bank)
+        - confirm=True, delete_only=True : SUPPRIME sans consolider
+
+        Args:
+            space_id: Espace cible (vide = scanner TOUS les espaces)
+            max_age_days: Seuil en jours (défaut 7)
+            confirm: False = dry-run, True = exécution
+            delete_only: Si True + confirm, supprime SANS consolider
+
+        Returns:
+            Rapport : nombre de notes, taille, répartition par agent
+        """
+        from ..auth.context import check_admin_permission
+        from ..core.gc import get_gc_service
+
+        try:
+            admin_err = check_admin_permission()
+            if admin_err:
+                return admin_err
+
+            gc = get_gc_service()
+
+            if confirm and delete_only:
+                # Mode suppression sans consolidation (perte de données)
+                return await gc.delete_old_notes(
+                    space_id=space_id,
+                    max_age_days=max_age_days,
+                )
+            elif confirm:
+                # Mode consolidation (défaut avec confirm)
+                return await gc.consolidate_old_notes(
+                    space_id=space_id,
+                    max_age_days=max_age_days,
+                )
+            else:
+                # Mode dry-run : scanner seulement
+                result = await gc.scan_old_notes(
+                    space_id=space_id,
+                    max_age_days=max_age_days,
+                )
+                for sid in result.get("spaces", {}):
+                    if "keys" in result["spaces"][sid]:
+                        count = len(result["spaces"][sid]["keys"])
+                        del result["spaces"][sid]["keys"]
+                        result["spaces"][sid]["keys_count"] = count
+                result["mode"] = "dry-run"
+                result["message"] = (
+                    f"Dry-run : {result['total_old_notes']} notes orphelines "
+                    f"trouvées. confirm=True pour consolider, "
+                    f"confirm=True+delete_only=True pour supprimer."
+                )
+                return result
+
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    return 5  # Nombre d'outils enregistrés
