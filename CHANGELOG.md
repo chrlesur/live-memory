@@ -5,6 +5,38 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.4.0] — 2026-03-03
+
+### Ajouté
+- **🖥️ Interface Web `/live`** — Dashboard + Live Timeline + Bank Viewer
+  - Page SPA accessible sur `/live` (même pattern que `/Graph` de graph-memory)
+  - Login overlay avec Bearer Token (stocké en localStorage)
+  - Layout 3 zones : Dashboard (gauche) | Live Timeline (haut-droite) | Bank (bas-droite)
+  - Séparateur redimensionnable par drag entre Live et Bank
+  - **Auto-refresh intelligent** configurable (3s/5s/10s/30s/manuel) — ne re-rend le DOM que si les données ont changé (anti-flicker via hash comparaison)
+  - Pastille verte pulsante avec timestamp du dernier refresh
+  - **Dashboard** : infos espace, consolidation (date + compteurs), stats live/bank, agents colorés, catégories avec %, rules Markdown, Graph Memory
+  - **Live Timeline** : notes groupées par date (Aujourd'hui/Hier/date), cards avec agent coloré + catégorie + rendu Markdown
+  - **Bank Viewer** : onglets de fichiers, rendu Markdown avec marked.js
+  - Sélection espace → chargement immédiat (pas de bouton)
+- **`StaticFilesMiddleware`** — Middleware ASGI pour servir `/live`, `/static/*` et 5 endpoints API REST
+  - `GET /api/spaces` — Liste des espaces
+  - `GET /api/space/{id}` — Info complète (meta + rules + stats)
+  - `GET /api/live/{id}` — Notes live (filtres optionnels)
+  - `GET /api/bank/{id}` — Liste fichiers bank
+  - `GET /api/bank/{id}/{filename}` — Contenu d'un fichier bank
+- **10 fichiers statiques** : HTML, CSS, 7 modules JS, logo SVG Cloud Temple
+- **Parsing JSON robuste** dans le client API (gère réponses vides/tronquées)
+
+### Changé
+- **Dockerfile rootless** — User `mcp` UID 10001, `COPY --chown=mcp:mcp`, aucune opération root après `USER mcp`
+- **`AuthMiddleware`** — Routes publiques étendues (`/live`, `/static/`)
+- **`server.py`** — `StaticFilesMiddleware` ajouté dans la pile ASGI, URL `/live` dans la bannière
+- Pile middlewares : `Auth → Logging → StaticFiles → HostNormalizer → MCP SSE`
+- **Venv** : `.venv/` ajouté au `.gitignore`
+
+---
+
 ## [0.3.0] — 2026-02-21
 
 ### Ajouté

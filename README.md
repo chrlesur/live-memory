@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -19,6 +19,8 @@
 - [Démarrage](#-démarrage)
 - [Outils MCP](#-outils-mcp)
 - [Graph Bridge](#-graph-bridge--pont-vers-graph-memory)
+- [README English](#-readme-english)
+- [Interface Web](#-interface-web)
 - [Intégration MCP](#-intégration-mcp)
 - [CLI et Shell](#-cli-et-shell)
 - [Tests](#-tests)
@@ -52,7 +54,7 @@ live-memory   = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
 | Collaboration multi-agents impossible       | Notes append-only, pas de conflit, visibilité croisée           |
 | Consolidation manuelle fastidieuse          | LLM transforme les notes brutes en documentation structurée     |
 | Mémoire dispersée en fichiers locaux        | Point central S3, accessible de partout                         |
-| Pas de lien avec la mémoire long terme      | 🌉 Graph Bridge pousse la bank dans un graphe de connaissancesv |
+| Pas de lien avec la mémoire long terme      | 🌉 Graph Bridge pousse la bank dans un graphe de connaissances |
 
 ### 🧠 Collaboration multi-agents et architecture mémoire à deux niveaux
 
@@ -91,7 +93,7 @@ Live Memory + Graph Memory implémente directement cette architecture :
 
 **Pourquoi deux niveaux ?** Un seul niveau ne suffit pas :
 - La mémoire de travail seule est **éphémère** — elle disparaît quand le projet se termine
-- Le graphe de connaissances seul est **trop lourd** pour des notes quotidiennes rapides
+- Le graphe de connaissances seul est **too lourd** pour des notes quotidiennes rapides
 - Le pont entre les deux permet aux agents de **travailler vite** (notes live) tout en **capitalisant** les connaissances (graphe)
 
 Concrètement, les agents peuvent :
@@ -330,65 +332,61 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 Live Memory peut pousser sa Memory Bank dans une instance [Graph Memory](https://github.com/chrlesur/graph-memory) pour la mémoire long terme. Le graphe de connaissances extrait les entités, relations et embeddings des fichiers bank.
 
-### Flux
+---
+
+## 🇬🇧 README English
+
+Une version anglaise de cette documentation est disponible ici : [README.en.md](README.en.md)
+
+---
+
+## 🖥️ Interface Web
+
+Live Memory expose une **interface web** sur `/live` pour visualiser les espaces mémoire en temps réel.
+
+### Accès
 
 ```
-1. graph_connect(space_id, url, token, memory_id, ontology="general")
-   └─ Teste la connexion, crée la mémoire Graph Memory si besoin
-
-2. bank_consolidate(space_id)
-   └─ Le LLM produit/met à jour les fichiers bank
-
-3. graph_push(space_id)
-   ├─ Liste les documents dans Graph Memory
-   ├─ Pour chaque fichier bank modifié :
-   │   ├─ document_delete (supprime entités orphelines)
-   │   └─ memory_ingest (recalcul complet du graphe)
-   ├─ Nettoie les documents supprimés de la bank
-   └─ Met à jour les métriques (last_push, push_count)
-
-4. graph_status(space_id)
-   └─ Stats : 79 entités, 61 relations, top entités, documents...
+http://localhost:8080/live
 ```
 
-### Push intelligent (delete + re-ingest)
+### Fonctionnalités
 
-Chaque push est un **refresh complet** du graphe. Les fichiers existants sont supprimés puis ré-ingérés pour que Graph Memory recalcule les entités, relations et embeddings avec le contenu à jour.
+| Zone | Contenu |
+|------|---------|
+| **📊 Dashboard** (gauche) | Infos espace, consolidation (date + compteurs), stats live/bank, agents colorés, catégories avec %, rules Markdown, Graph Memory |
+| **🔴 Live Timeline** (haut-droite) | Notes live groupées par date (Aujourd'hui/Hier/date), cards avec agent + catégorie + Markdown |
+| **📘 Bank Viewer** (bas-droite) | Onglets de fichiers consolidés, rendu Markdown avec marked.js |
 
-### Ontologies disponibles
+### Layout
 
-| Ontologie          | Usage                                        |
-| ------------------ | -------------------------------------------- |
-| `general` (défaut) | Polyvalent : FAQ, specs, certifications, RSE |
-| `legal`            | Documents juridiques, contrats               |
-| `cloud`            | Infrastructure cloud, fiches produits        |
-| `managed-services` | Services managés, infogérance                |
-| `presales`         | Avant-vente, RFP/RFI, propositions           |
-
-### Exemple complet
-
-```python
-# 1. Connecter le space à Graph Memory
-graph_connect(
-    space_id="mon-projet",
-    url="https://graph-mem.mcp.cloud-temple.app/sse",
-    token="votre_token_graph_memory",
-    memory_id="MON-PROJET",
-    ontology="general"
-)
-
-# 2. Consolider les notes en bank
-bank_consolidate(space_id="mon-projet")
-
-# 3. Pousser la bank dans le graphe
-graph_push(space_id="mon-projet")
-# → 3 fichiers poussés, 79 entités extraites, 61 relations
-
-# 4. Vérifier les stats
-graph_status(space_id="mon-projet")
-# → Documents: 3, Entités: 79, Relations: 61
-# → Top: [Product] HAProxy, [Product] API Gateway (Kong), ...
 ```
+┌──────────────┬────────────────────────────┐
+│  📊 Dashboard│  🔴 Live Timeline          │
+│  (infos,     │  (auto-refresh, groupé/date)│
+│   agents,    ├────────────────────────────┤
+│   rules...)  │  📘 Bank (onglets Markdown) │
+└──────────────┴────────────────────────────┘
+```
+
+### Auto-refresh intelligent
+
+- Configurable : 3s / 5s / 10s / 30s / manuel
+- **Anti-flicker** : ne re-rend le DOM que si les données ont changé
+- Pastille verte pulsante avec timestamp du dernier refresh
+- Sélection d'espace → chargement immédiat (pas de bouton)
+
+### API REST (5 endpoints)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/spaces` | Liste des espaces |
+| `GET /api/space/{id}` | Info complète (meta + rules + stats + graph-memory) |
+| `GET /api/live/{id}` | Notes live (filtres: `?agent=`, `?category=`, `?limit=`) |
+| `GET /api/bank/{id}` | Liste des fichiers bank |
+| `GET /api/bank/{id}/{filename}` | Contenu d'un fichier bank |
+
+Les endpoints `/api/*` nécessitent un Bearer Token. La page `/live` et les fichiers `/static/*` sont publics.
 
 ---
 
@@ -551,12 +549,17 @@ Voir [scripts/README.md](scripts/README.md) pour le détail de chaque test.
 
 ```
 live-memory/
-├── src/live_mem/              # Code source (30 outils MCP)
+├── src/live_mem/              # Code source (30 outils MCP + interface web)
 │   ├── server.py              # Serveur FastMCP + middlewares
 │   ├── config.py              # Configuration pydantic-settings
 │   ├── auth/                  # Authentification
-│   │   ├── middleware.py      #   Middleware ASGI (Bearer + contextvars)
+│   │   ├── middleware.py      #   Auth + Logging + StaticFiles + HostNormalizer
 │   │   └── context.py         #   check_access, check_write, check_admin
+│   ├── static/                # Interface web /live
+│   │   ├── live.html          #   SPA (Dashboard + Live + Bank)
+│   │   ├── css/live.css       #   Styles (thème Cloud Temple)
+│   │   ├── js/                #   7 modules JS (config, api, app, dashboard, timeline, bank, sidebar)
+│   │   └── img/               #   Logo Cloud Temple SVG
 │   ├── core/                  # Services métier
 │   │   ├── storage.py         #   S3 dual SigV2/SigV4 (Dell ECS)
 │   │   ├── space.py           #   CRUD espaces mémoire
@@ -590,7 +593,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.3.0
+├── VERSION                    # 0.4.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -653,4 +656,4 @@ Développé par **Christophe Lesur**, Directeur Général.
 
 ---
 
-*Live Memory v0.3.0 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.4.0 — Mémoire de travail partagée pour agents IA collaboratifs*

@@ -81,15 +81,18 @@ def create_app():
     Crée l'application ASGI complète avec les middlewares.
 
     Pile d'exécution (premier exécuté → dernier) :
-        AuthMiddleware → LoggingMiddleware → HostNormalizerMiddleware → mcp.sse_app()
+        AuthMiddleware → LoggingMiddleware → StaticFilesMiddleware
+        → HostNormalizerMiddleware → mcp.sse_app()
 
     L'AuthMiddleware extrait le Bearer token et l'injecte dans les contextvars.
     Le LoggingMiddleware trace les requêtes HTTP sur stderr.
+    Le StaticFilesMiddleware sert /live, /static/*, /api/* (interface web).
     Le HostNormalizerMiddleware remplace le header Host pour le SDK MCP.
     """
     from .auth.middleware import (
         AuthMiddleware,
         LoggingMiddleware,
+        StaticFilesMiddleware,
         HostNormalizerMiddleware,
     )
 
@@ -97,7 +100,9 @@ def create_app():
     app = mcp.sse_app()
 
     # Empiler les middlewares (dernier ajouté = premier exécuté)
+    # Flux requête : Auth → Logging → StaticFiles → HostNormalizer → MCP SSE
     app = HostNormalizerMiddleware(app)
+    app = StaticFilesMiddleware(app)
     app = LoggingMiddleware(app)
     app = AuthMiddleware(app)
 
@@ -152,6 +157,7 @@ def main():
     port = settings.mcp_server_port
     content_lines.append(f"  🌐 http://{host}:{port}")
     content_lines.append(f"  📡 http://{host}:{port}/sse")
+    content_lines.append(f"  🖥️  http://{host}:{port}/live")
 
     # Calculer la largeur du cadre (largeur max + marges)
     # Note : les emoji comptent pour 2 colonnes en affichage terminal

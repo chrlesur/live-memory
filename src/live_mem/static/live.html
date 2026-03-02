@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Temple — Live Memory</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/static/css/live.css">
+</head>
+<body>
+
+<!-- ═══════════════ ÉCRAN DE LOGIN ═══════════════ -->
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+        <img src="/static/img/logo-cloudtemple.svg" alt="Cloud Temple" class="login-logo">
+        <h2>Live Memory</h2>
+        <p class="login-subtitle">Mémoire de travail partagée pour agents IA</p>
+        <div class="login-form">
+            <label for="loginToken">🔑 Token d'accès</label>
+            <input type="password" id="loginToken" placeholder="Collez votre token ici…" autocomplete="off" spellcheck="false">
+            <div class="login-error" id="loginError"></div>
+            <button id="loginBtn">Se connecter</button>
+        </div>
+        <p class="login-hint">Contactez votre administrateur pour obtenir un token d'accès.</p>
+    </div>
+</div>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div class="header">
+    <div class="header-brand">
+        <img src="/static/img/logo-cloudtemple.svg" alt="Cloud Temple" class="header-logo">
+        <span class="header-separator">|</span>
+        <h1>Live Memory</h1>
+    </div>
+    <div class="controls">
+        <select id="spaceSelect"><option value="">-- Espace --</option></select>
+        <span class="header-separator">|</span>
+        <label class="refresh-label">
+            🔄 <select id="refreshInterval" title="Auto-refresh">
+                <option value="0">Manuel</option>
+                <option value="3">3s</option>
+                <option value="5" selected>5s</option>
+                <option value="10">10s</option>
+                <option value="30">30s</option>
+            </select>
+        </label>
+        <span class="col-status" id="globalStatus">
+            <span class="dot paused"></span>
+            <span class="status-text">—</span>
+        </span>
+        <button class="btn-logout" id="logoutBtn" title="Déconnexion">🔓</button>
+    </div>
+</div>
+
+<!-- ═══════════════ LAYOUT PRINCIPAL ═══════════════ -->
+<div class="main" id="mainLayout">
+
+    <!-- Placeholder (avant sélection) -->
+    <div class="placeholder" id="placeholder">
+        <div class="placeholder-icon">🧠</div>
+        <h2>Live Memory</h2>
+        <p>Sélectionnez un espace pour commencer</p>
+    </div>
+
+    <!-- Dashboard (gauche) -->
+    <div class="panel-left" id="panelLeft" style="display:none">
+        <div class="panel-title">📊 Dashboard</div>
+        <div class="dashboard-content" id="dashboardContent"></div>
+    </div>
+
+    <!-- Contenu (droite) -->
+    <div class="panel-right" id="panelRight" style="display:none">
+
+        <!-- Zone Live (haut) -->
+        <div class="live-panel" id="livePanel">
+            <div class="panel-title">
+                🔴 Live <span class="live-count" id="liveCount"></span>
+            </div>
+            <div class="live-content" id="liveContent"></div>
+        </div>
+
+        <!-- Séparateur redimensionnable -->
+        <div class="resizer" id="resizer" title="Glisser pour redimensionner"></div>
+
+        <!-- Zone Bank (bas) -->
+        <div class="bank-panel" id="bankPanel">
+            <div class="panel-title">📘 Bank <span class="bank-count" id="bankCount"></span></div>
+            <div class="bank-tabs" id="bankTabs"></div>
+            <div class="bank-content" id="bankContent">
+                <div class="empty-state">Aucun fichier bank consolidé</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ═══════════════ SCRIPTS ═══════════════ -->
+<script src="/static/js/config.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/sidebar.js"></script>
+<script src="/static/js/dashboard.js"></script>
+<script src="/static/js/timeline.js"></script>
+<script src="/static/js/bank.js"></script>
+<script src="/static/js/app.js"></script>
+
+</body>
+</html>

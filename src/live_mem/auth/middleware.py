@@ -33,7 +33,10 @@ class AuthMiddleware:
     """
 
     # Routes qui ne nécessitent pas d'authentification
-    PUBLIC_PATHS = {"/health", "/favicon.ico"}
+    PUBLIC_PATHS = {"/health", "/favicon.ico", "/live", "/live/"}
+
+    # Préfixes de routes publiques (fichiers statiques)
+    PUBLIC_PREFIXES = ("/static/",)
 
     def __init__(self, app):
         self.app = app
@@ -46,6 +49,8 @@ class AuthMiddleware:
 
         # Routes publiques → pas d'auth
         if path in self.PUBLIC_PATHS:
+            return await self.app(scope, receive, send)
+        if any(path.startswith(p) for p in self.PUBLIC_PREFIXES):
             return await self.app(scope, receive, send)
 
         # Extraire le Bearer token
@@ -147,6 +152,280 @@ class LoggingMiddleware:
             # Ne pas logger les health checks pour éviter le bruit
             if path not in ("/health",):
                 logger.info("%s %s → %s (%.0fms)", method, path, status_code, elapsed)
+
+
+class StaticFilesMiddleware:
+    """
+    Middleware ASGI pour servir l'interface web et l'API REST.
+
+    Routes interceptées :
+    - GET /live           → Page de visualisation (live.html)
+    - GET /static/*       → Fichiers statiques (CSS, JS, images)
+    - GET /api/spaces     → Liste des espaces (JSON)
+    - GET /api/space/{id} → Info complète d'un espace (JSON)
+    - GET /api/live/{id}  → Notes live d'un espace (JSON)
+    - GET /api/bank/{id}  → Liste des fichiers bank (JSON)
+    - GET /api/bank/{id}/{filename} → Contenu d'un fichier bank (JSON)
+
+    Toutes les autres routes passent au handler suivant (MCP SSE).
+    """
+
+    def __init__(self, app):
+        import os
+        self.app = app
+        self._static_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "static"
+        )
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        method = scope.get("method", "GET")
+
+        # Page de visualisation
+        if path in ("/live", "/live/"):
+            await self._serve_file(send, "live.html", "text/html; charset=utf-8")
+            return
+
+        # Fichiers statiques (CSS, JS, images)
+        if path.startswith("/static/"):
+            rel_path = path[len("/static/"):]
+            if ".." not in rel_path and rel_path:
+                ct = self._guess_content_type(rel_path)
+                await self._serve_file(send, rel_path, ct)
+                return
+
+        # API REST — Liste des espaces
+        if path == "/api/spaces" and method == "GET":
+            await self._api_spaces(scope, send)
+            return
+
+        # API REST — Info d'un espace
+        if path.startswith("/api/space/") and method == "GET":
+            space_id = path[len("/api/space/"):]
+            if space_id and "/" not in space_id:
+                await self._api_space_info(send, space_id)
+                return
+
+        # API REST — Notes live
+        if path.startswith("/api/live/") and method == "GET":
+            space_id = path[len("/api/live/"):]
+            if space_id and "/" not in space_id:
+                qs = scope.get("query_string", b"").decode()
+                await self._api_live_notes(send, space_id, qs)
+                return
+
+        # API REST — Bank (liste ou fichier)
+        if path.startswith("/api/bank/") and method == "GET":
+            remainder = path[len("/api/bank/"):]
+            parts = remainder.split("/", 1)
+            if len(parts) == 1 and parts[0]:
+                await self._api_bank_list(send, parts[0])
+                return
+            elif len(parts) == 2 and parts[0] and parts[1]:
+                await self._api_bank_file(send, parts[0], parts[1])
+                return
+
+        # Passer au handler suivant (MCP SSE)
+        await self.app(scope, receive, send)
+
+    # ─────────────────── API Handlers ───────────────────
+
+    async def _api_spaces(self, scope, send):
+        """Liste des espaces."""
+        try:
+            from ..core.space import get_space_service
+            # Récupérer les permissions du token si disponibles
+            allowed = None
+            token_info = current_token_info.get()
+            if token_info and token_info.get("allowed_resources"):
+                allowed = token_info["allowed_resources"]
+            elif token_info and token_info.get("space_ids"):
+                allowed = token_info["space_ids"]
+
+            result = await get_space_service().list_spaces(
+                allowed_space_ids=allowed if allowed else None
+            )
+            await self._send_json(send, result)
+        except Exception as e:
+            await self._send_json(send, {"status": "error", "message": str(e)}, 500)
+
+    async def _api_space_info(self, send, space_id: str):
+        """Info complète d'un espace (meta + rules + stats)."""
+        try:
+            from ..core.space import get_space_service
+            from ..core.storage import get_storage
+
+            svc = get_space_service()
+            info = await svc.get_info(space_id)
+            if info.get("status") != "ok":
+                await self._send_json(send, info)
+                return
+
+            # Ajouter les rules
+            rules_result = await svc.get_rules(space_id)
+            info["rules"] = rules_result.get("rules", "")
+
+            # Ajouter les métadonnées complètes (pour graph_memory, etc.)
+            storage = get_storage()
+            meta = await storage.get_json(f"{space_id}/_meta.json")
+            if meta:
+                info["total_notes_processed"] = meta.get("total_notes_processed", 0)
+                if meta.get("graph_memory"):
+                    info["graph_memory"] = meta["graph_memory"]
+
+            await self._send_json(send, info)
+        except Exception as e:
+            await self._send_json(send, {"status": "error", "message": str(e)}, 500)
+
+    async def _api_live_notes(self, send, space_id: str, query_string: str):
+        """Notes live avec filtres optionnels."""
+        try:
+            from ..core.live import get_live_service
+            from urllib.parse import parse_qs
+
+            params = parse_qs(query_string)
+            result = await get_live_service().read_notes(
+                space_id=space_id,
+                limit=int(params.get("limit", ["500"])[0]),
+                category=params.get("category", [""])[0],
+                agent=params.get("agent", [""])[0],
+                since=params.get("since", [""])[0],
+            )
+            await self._send_json(send, result)
+        except Exception as e:
+            await self._send_json(send, {"status": "error", "message": str(e)}, 500)
+
+    async def _api_bank_list(self, send, space_id: str):
+        """Liste des fichiers bank."""
+        try:
+            from ..core.storage import get_storage
+            storage = get_storage()
+
+            # Vérifier l'existence de l'espace
+            if not await storage.exists(f"{space_id}/_meta.json"):
+                await self._send_json(send, {
+                    "status": "not_found",
+                    "message": f"Espace '{space_id}' introuvable"
+                })
+                return
+
+            # Lister les fichiers bank
+            objects = await storage.list_objects(f"{space_id}/bank/")
+            files = []
+            for obj in objects:
+                key = obj["Key"]
+                if key.endswith(".keep"):
+                    continue
+                filename = key.split("/")[-1]
+                files.append({
+                    "filename": filename,
+                    "size": obj.get("Size", 0),
+                    "last_modified": obj.get("LastModified", ""),
+                })
+
+            await self._send_json(send, {
+                "status": "ok",
+                "space_id": space_id,
+                "files": files,
+                "total": len(files),
+            })
+        except Exception as e:
+            await self._send_json(send, {"status": "error", "message": str(e)}, 500)
+
+    async def _api_bank_file(self, send, space_id: str, filename: str):
+        """Contenu d'un fichier bank."""
+        try:
+            from ..core.storage import get_storage
+            from urllib.parse import unquote
+            storage = get_storage()
+            filename = unquote(filename)
+
+            key = f"{space_id}/bank/{filename}"
+            content = await storage.get(key)
+            if content is None:
+                await self._send_json(send, {
+                    "status": "not_found",
+                    "message": f"Fichier '{filename}' introuvable"
+                })
+                return
+
+            await self._send_json(send, {
+                "status": "ok",
+                "space_id": space_id,
+                "filename": filename,
+                "content": content,
+                "size": len(content.encode("utf-8")),
+            })
+        except Exception as e:
+            await self._send_json(send, {"status": "error", "message": str(e)}, 500)
+
+    # ─────────────────── Utilitaires ───────────────────
+
+    async def _send_json(self, send, data: dict, status: int = 200):
+        """Envoie une réponse JSON."""
+        import json
+        body = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json; charset=utf-8"),
+                (b"content-length", str(len(body)).encode()),
+                (b"access-control-allow-origin", b"*"),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+
+    async def _serve_file(self, send, filename: str, content_type: str):
+        """Sert un fichier statique."""
+        import os
+        filepath = os.path.join(self._static_dir, filename)
+
+        if not os.path.exists(filepath):
+            body = f"<h1>404 Not Found</h1><p>{filename}</p>".encode()
+            await send({
+                "type": "http.response.start",
+                "status": 404,
+                "headers": [
+                    (b"content-type", b"text/html"),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            })
+            await send({"type": "http.response.body", "body": body})
+            return
+
+        with open(filepath, "rb") as f:
+            body = f.read()
+
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                (b"content-type", content_type.encode()),
+                (b"content-length", str(len(body)).encode()),
+                (b"cache-control", b"no-cache"),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+
+    @staticmethod
+    def _guess_content_type(filename: str) -> str:
+        """Devine le content-type à partir de l'extension."""
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        return {
+            "html": "text/html; charset=utf-8",
+            "css": "text/css; charset=utf-8",
+            "js": "application/javascript; charset=utf-8",
+            "json": "application/json",
+            "png": "image/png",
+            "svg": "image/svg+xml",
+            "ico": "image/x-icon",
+        }.get(ext, "application/octet-stream")
 
 
 class HostNormalizerMiddleware:
