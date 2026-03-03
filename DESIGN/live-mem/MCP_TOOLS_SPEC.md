@@ -1,21 +1,22 @@
 # Spécification des Outils MCP — Live Memory
 
-> **Version** : 0.1.0 | **Date** : 2026-02-20 | **Auteur** : Cloud Temple
+> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
 
 ---
 
 ## Vue d'ensemble
 
-Live Memory expose **24 outils MCP** répartis en 6 catégories :
+Live Memory expose **30 outils MCP** répartis en 7 catégories :
 
-| Catégorie      | Outils                    | Description                                      |
-| -------------- | ------------------------- | ------------------------------------------------ |
-| **Space** (7)  | CRUD des espaces mémoire  | Créer, lister, inspecter, exporter, supprimer    |
-| **Live** (3)   | Notes en temps réel       | Écrire, lire, rechercher des notes               |
-| **Bank** (4)   | Memory Bank consolidée    | Lire, lister, lire tout, consolider via LLM      |
-| **Backup** (5) | Sauvegarde & restauration | Créer, lister, restaurer, télécharger, supprimer |
-| **Admin** (4)  | Gestion des tokens        | Créer, lister, révoquer, modifier                |
-| **System** (2) | Santé & identité          | Health check, informations serveur               |
+| Catégorie       | Outils | Description                                      |
+| --------------- | ------ | ------------------------------------------------ |
+| **System** (2)  | 2      | Santé & identité du service                      |
+| **Space** (7)   | 7      | CRUD des espaces mémoire                         |
+| **Live** (3)    | 3      | Notes en temps réel                              |
+| **Bank** (4)    | 4      | Memory Bank consolidée via LLM                   |
+| **Graph** (4)   | 4      | Pont vers Graph Memory (mémoire long terme)      |
+| **Backup** (5)  | 5      | Sauvegarde & restauration                        |
+| **Admin** (5)   | 5      | Gestion des tokens + maintenance (GC)            |
 
 ---
 
@@ -32,7 +33,7 @@ Chaque outil retourne un `dict` avec un champ `status` :
 {"status": "deleted", ...}              # Ressource supprimée
 {"status": "not_found", ...}            # Ressource introuvable
 {"status": "forbidden", ...}            # Accès refusé
-{"status": "conflict", ...}             # Conflit d'écriture
+{"status": "conflict", ...}             # Conflit (consolidation en cours)
 ```
 
 ### Permissions
@@ -46,7 +47,64 @@ Chaque outil retourne un `dict` avec un champ `status` :
 
 ---
 
-## 1. Space — Gestion des espaces mémoire
+## 1. System — Santé & identité
+
+### `system_health` 🔓
+
+Vérifie l'état de santé du service (S3, LLMaaS, nombre d'espaces).
+
+```python
+@mcp.tool()
+async def system_health() -> dict:
+```
+
+**Retour** :
+```json
+{
+  "status": "ok",
+  "service_name": "Live Memory",
+  "version": "0.4.0",
+  "uptime_seconds": 3600,
+  "services": {
+    "s3": {"status": "ok", "latency_ms": 45},
+    "llmaas": {"status": "ok", "model": "qwen3-2507:235b", "latency_ms": 120}
+  },
+  "spaces_count": 3
+}
+```
+
+---
+
+### `system_about` 🔓
+
+Informations sur le service, version, outils disponibles.
+
+```python
+@mcp.tool()
+async def system_about() -> dict:
+```
+
+**Retour** :
+```json
+{
+  "status": "ok",
+  "name": "Live Memory",
+  "version": "0.4.0",
+  "description": "Mémoire de travail partagée pour agents IA collaboratifs",
+  "author": "Cloud Temple",
+  "documentation": "https://github.com/chrlesur/live-memory",
+  "python_version": "3.14.3",
+  "tools_count": 30,
+  "tools": [
+    {"name": "system_health", "description": "Vérifie l'état de santé..."},
+    ...
+  ]
+}
+```
+
+---
+
+## 2. Space — Gestion des espaces mémoire
 
 ### `space_create` ✏️
 
@@ -138,7 +196,7 @@ async def space_info(space_id: str) -> dict:
   "bank": {
     "files_count": 6,
     "total_size": 8900,
-    "files": ["activeContext.md", "progress.md", "projectbrief.md", "systemPatterns.md", "techContext.md", "productContext.md"]
+    "files": ["activeContext.md", "progress.md", "projectbrief.md"]
   },
   "last_consolidation": "2026-02-20T16:00:00Z",
   "synthesis_exists": true
@@ -156,27 +214,16 @@ Lit les rules de l'espace (immuables).
 async def space_rules(space_id: str) -> dict:
 ```
 
-**Retour** :
-```json
-{
-  "status": "ok",
-  "space_id": "projet-alpha",
-  "rules": "# Memory Bank Rules\n\n## Structure\n..."
-}
-```
-
 ---
 
 ### `space_summary` 🔑
 
-Synthèse complète d'un espace (rules + bank + stats live).
+Synthèse complète d'un espace (rules + bank + stats live). Utile pour qu'un agent charge tout le contexte d'un coup au démarrage.
 
 ```python
 @mcp.tool()
 async def space_summary(space_id: str) -> dict:
 ```
-
-**Retour** : Combine `space_info` + `space_rules` + `bank_read_all` en une seule réponse. Utile pour qu'un agent charge tout le contexte d'un coup.
 
 ---
 
@@ -187,17 +234,6 @@ Exporte un espace complet en archive tar.gz (retourne en base64).
 ```python
 @mcp.tool()
 async def space_export(space_id: str) -> dict:
-```
-
-**Retour** :
-```json
-{
-  "status": "ok",
-  "space_id": "projet-alpha",
-  "archive_base64": "H4sIAAAAAAAAA...",
-  "archive_size": 45000,
-  "files_count": 52
-}
 ```
 
 ---
@@ -216,7 +252,7 @@ async def space_delete(
 
 ---
 
-## 2. Live — Notes en temps réel
+## 3. Live — Notes en temps réel
 
 ### `live_note` ✏️
 
@@ -227,7 +263,7 @@ async def space_delete(
 async def live_note(
     space_id: str,
     category: str,          # observation | decision | todo | insight | question | progress | issue
-    content: str,           # Contenu de la note (texte libre ou JSON)
+    content: str,           # Contenu de la note (texte libre)
     agent: str = "",        # Identifiant de l'agent (auto-détecté si vide)
     tags: str = ""          # Tags séparés par des virgules (optionnel)
 ) -> dict:
@@ -251,20 +287,7 @@ async def live_note(
 - Crée le fichier avec front-matter YAML + contenu
 - Aucun conflit possible (append-only, nom unique)
 - Aucun lock nécessaire
-
-**Format du fichier créé** :
-```markdown
----
-timestamp: "2026-02-20T18:05:12Z"
-agent: "cline-dev"
-category: "observation"
-tags: ["auth", "module"]
-space_id: "projet-alpha"
----
-
-Le module d'authentification fonctionne correctement.
-Les tests passent avec les tokens Bearer.
-```
+- Le paramètre `agent` est découplé du token : un même token peut écrire pour différents agents
 
 **Catégories standard** :
 
@@ -276,7 +299,7 @@ Les tests passent avec les tokens Bearer.
 | `insight`     | Analyse, pattern découvert      | "Le pattern X est pertinent ici"       |
 | `question`    | Question ouverte                | "Faut-il supporter le format CSV ?"    |
 | `progress`    | Avancement                      | "Module auth : 80% terminé"            |
-| `issue`       | Problème, bug                   | "Le timeout LLM dépasse 60s"           |
+| `issue`       | Problème, bug                   | "Le timeout LLM dépasse 60s"          |
 
 ---
 
@@ -295,46 +318,24 @@ async def live_read(
 ) -> dict:
 ```
 
-**Retour** :
-```json
-{
-  "status": "ok",
-  "space_id": "projet-alpha",
-  "notes": [
-    {
-      "filename": "20260220T180512_cline-dev_observation_a3f8b2c1.md",
-      "timestamp": "2026-02-20T18:05:12Z",
-      "agent": "cline-dev",
-      "category": "observation",
-      "tags": ["auth", "module"],
-      "content": "Le module d'authentification fonctionne correctement."
-    }
-  ],
-  "total": 1,
-  "has_more": false
-}
-```
-
 ---
 
 ### `live_search` 🔑
 
-Recherche texte dans les notes live.
+Recherche texte dans les notes live (case-insensitive).
 
 ```python
 @mcp.tool()
 async def live_search(
     space_id: str,
-    query: str,              # Texte à chercher (case-insensitive)
+    query: str,              # Texte à chercher
     limit: int = 20
 ) -> dict:
 ```
 
-**Retour** : Même format que `live_read`, filtré par correspondance texte.
-
 ---
 
-## 3. Bank — Memory Bank consolidée
+## 4. Bank — Memory Bank consolidée
 
 ### `bank_read` 🔑
 
@@ -348,18 +349,6 @@ async def bank_read(
 ) -> dict:
 ```
 
-**Retour** :
-```json
-{
-  "status": "ok",
-  "space_id": "projet-alpha",
-  "filename": "activeContext.md",
-  "content": "# Active Context\n\n## Current Focus\n...",
-  "size": 2300,
-  "last_modified": "2026-02-20T16:00:00Z"
-}
-```
-
 ---
 
 ### `bank_read_all` 🔑
@@ -370,23 +359,6 @@ Lit l'ensemble de la memory bank en une seule requête. C'est l'outil qu'un agen
 @mcp.tool()
 async def bank_read_all(space_id: str) -> dict:
 ```
-
-**Retour** :
-```json
-{
-  "status": "ok",
-  "space_id": "projet-alpha",
-  "files": [
-    {"filename": "projectbrief.md", "content": "# Project Brief\n...", "size": 1200},
-    {"filename": "activeContext.md", "content": "# Active Context\n...", "size": 2300},
-    {"filename": "progress.md", "content": "# Progress\n...", "size": 1800}
-  ],
-  "total_size": 5300,
-  "file_count": 3
-}
-```
-
-**Note** : L'ordre des fichiers n'est PAS garanti. Le MCP retourne ce qui existe dans `bank/`, sans ordre prédéfini. C'est l'agent qui interprète les fichiers selon les rules.
 
 ---
 
@@ -399,33 +371,24 @@ Liste les fichiers de la bank (sans leur contenu).
 async def bank_list(space_id: str) -> dict:
 ```
 
-**Retour** :
-```json
-{
-  "status": "ok",
-  "space_id": "projet-alpha",
-  "files": [
-    {"filename": "activeContext.md", "size": 2300, "last_modified": "2026-02-20T16:00:00Z"},
-    {"filename": "progress.md", "size": 1800, "last_modified": "2026-02-20T16:00:00Z"},
-    {"filename": "projectbrief.md", "size": 1200, "last_modified": "2026-02-20T14:00:00Z"}
-  ],
-  "file_count": 3
-}
-```
-
 ---
 
-### `bank_consolidate` ✏️
+### `bank_consolidate` ✏️/👑
 
-**Déclenche la consolidation** : le MCP lit les notes live, les rules et la bank actuelle, puis utilise le LLM pour produire les fichiers bank mis à jour. Ensuite les notes live sont supprimées et remplacées par une synthèse résiduelle.
+Déclenche la consolidation LLM : lit les notes live, les rules et la bank actuelle, puis utilise le LLM pour produire les fichiers bank mis à jour.
 
 ```python
 @mcp.tool()
 async def bank_consolidate(
     space_id: str,
-    ctx: Optional[Context] = None    # Pour notifications progression
+    agent: str = ""          # Filtre par agent (voir permissions ci-dessous)
 ) -> dict:
 ```
+
+**Paramètre `agent`** (ajouté en v0.2.0) :
+- `agent=""` (vide) : consolide **TOUTES** les notes → permission admin requise
+- `agent="mon-agent"` (= nom du caller) : consolide uniquement les notes de cet agent → permission write suffit
+- `agent="autre-agent"` (≠ caller) : consolide les notes d'un autre agent → permission admin requise
 
 **Retour** :
 ```json
@@ -438,11 +401,11 @@ async def bank_consolidate(
   "bank_files_unchanged": 0,
   "synthesis_size": 1200,
   "llm_tokens_used": 45000,
+  "llm_prompt_tokens": 17000,
+  "llm_completion_tokens": 28000,
   "duration_seconds": 35.2
 }
 ```
-
-**Comportement détaillé** : voir `CONSOLIDATION_LLM.md`
 
 **⚠️ Restrictions** :
 - Un seul `bank_consolidate` peut s'exécuter à la fois par espace (lock global par espace)
@@ -451,7 +414,123 @@ async def bank_consolidate(
 
 ---
 
-## 4. Backup — Sauvegarde & restauration
+## 5. Graph — Pont vers Graph Memory
+
+### `graph_connect` ✏️
+
+Connecte un space Live Memory à une instance Graph Memory. Teste la connexion, crée la mémoire si besoin.
+
+```python
+@mcp.tool()
+async def graph_connect(
+    space_id: str,
+    url: str,                # URL de Graph Memory (ex: "http://localhost:8080/sse")
+    token: str,              # Bearer token pour Graph Memory
+    memory_id: str,          # Identifiant de la mémoire cible
+    ontology: str = "general"  # general | legal | cloud | managed-services | presales
+) -> dict:
+```
+
+**Retour** :
+```json
+{
+  "status": "ok",
+  "space_id": "projet-alpha",
+  "graph_memory": {
+    "url": "https://graph-mem.mcp.cloud-temple.app/sse",
+    "memory_id": "projet-alpha-mem",
+    "ontology": "general",
+    "memory_status": "created"
+  }
+}
+```
+
+**Comportement** :
+- Normalise l'URL (ajoute `/sse` si absent)
+- Teste la connexion MCP SSE (handshake complet)
+- Crée la mémoire dans Graph Memory si elle n'existe pas
+- Sauvegarde la config dans `_meta.json` (champ `graph_memory`)
+
+---
+
+### `graph_push` ✏️
+
+Synchronise la bank dans Graph Memory. Supprime les anciens documents et ré-ingère les fichiers bank à jour.
+
+```python
+@mcp.tool()
+async def graph_push(space_id: str) -> dict:
+```
+
+**Retour** :
+```json
+{
+  "status": "ok",
+  "space_id": "projet-alpha",
+  "files_pushed": 6,
+  "files_cleaned": 0,
+  "files_failed": 0,
+  "duration_seconds": 45.2,
+  "details": [
+    {"filename": "activeContext.md", "action": "re-ingested", "duration": 8.1},
+    ...
+  ]
+}
+```
+
+**Comportement** :
+- Le space doit d'abord être connecté via `graph_connect`
+- Suppression + ré-ingestion intelligente (recalcul du graphe)
+- Nettoyage des orphelins (fichiers supprimés de la bank)
+- ~10-30s par fichier (extraction LLM d'entités/relations + embeddings)
+- Met à jour les métriques dans `_meta.json`
+
+---
+
+### `graph_status` 🔑
+
+Vérifie le statut de la connexion Graph Memory et récupère les stats du graphe.
+
+```python
+@mcp.tool()
+async def graph_status(space_id: str) -> dict:
+```
+
+**Retour** :
+```json
+{
+  "status": "ok",
+  "connected": true,
+  "graph_memory": {
+    "url": "https://graph-mem.mcp.cloud-temple.app/sse",
+    "memory_id": "projet-alpha-mem",
+    "last_push": "2026-03-01T14:00:00Z",
+    "push_count": 3,
+    "files_pushed": 6
+  },
+  "graph_stats": {
+    "documents": 6,
+    "entities": 45,
+    "relations": 82,
+    "top_entities": [...]
+  }
+}
+```
+
+---
+
+### `graph_disconnect` ✏️
+
+Déconnecte un space de Graph Memory. Les données déjà poussées restent dans le graphe.
+
+```python
+@mcp.tool()
+async def graph_disconnect(space_id: str) -> dict:
+```
+
+---
+
+## 6. Backup — Sauvegarde & restauration
 
 ### `backup_create` ✏️
 
@@ -465,30 +544,16 @@ async def backup_create(
 ) -> dict:
 ```
 
-**Retour** :
-```json
-{
-  "status": "created",
-  "backup_id": "projet-alpha/2026-02-20T18-00-00",
-  "space_id": "projet-alpha",
-  "files_backed_up": 52,
-  "total_size": 45000,
-  "description": "Backup avant refactoring"
-}
-```
-
-**Stockage S3** : `_backups/{space_id}/{timestamp}/` contient une copie de `_meta.json`, `_rules.md`, `live/`, `bank/`, `_synthesis.md`.
-
 ---
 
 ### `backup_list` 🔑
+
+Liste les backups disponibles. Si `space_id` vide → liste tous les backups accessibles.
 
 ```python
 @mcp.tool()
 async def backup_list(space_id: str = "") -> dict:
 ```
-
-Si `space_id` vide → liste tous les backups de tous les espaces accessibles.
 
 ---
 
@@ -531,15 +596,17 @@ async def backup_delete(
 
 ---
 
-## 5. Admin — Gestion des tokens
+## 7. Admin — Gestion des tokens & maintenance
 
 ### `admin_create_token` 👑
+
+Crée un nouveau token d'authentification.
 
 ```python
 @mcp.tool()
 async def admin_create_token(
     name: str,               # Nom descriptif du token
-    permissions: str,         # "read", "read,write", "read,write,admin"
+    permissions: str,         # "read", "read,write", ou "read,write,admin"
     space_ids: str = "",     # Espaces autorisés (vide = tous)
     expires_in_days: int = 0  # 0 = pas d'expiration
 ) -> dict:
@@ -564,16 +631,18 @@ Le token est hashé en SHA-256 avant stockage dans `_system/tokens.json`.
 
 ### `admin_list_tokens` 👑
 
+Liste les métadonnées de tous les tokens (jamais le token en clair).
+
 ```python
 @mcp.tool()
 async def admin_list_tokens() -> dict:
 ```
 
-Retourne les métadonnées (nom, permissions, hash tronqué) — jamais le token en clair.
-
 ---
 
 ### `admin_revoke_token` 👑
+
+Révoque un token (le rend définitivement inutilisable).
 
 ```python
 @mcp.tool()
@@ -584,59 +653,52 @@ async def admin_revoke_token(token_hash: str) -> dict:
 
 ### `admin_update_token` 👑
 
+Met à jour les permissions ou espaces autorisés d'un token.
+
 ```python
 @mcp.tool()
 async def admin_update_token(
     token_hash: str,
-    space_ids: str = "",     # Nouveaux espaces autorisés
-    permissions: str = ""    # Nouvelles permissions
+    space_ids: str = "",     # Nouveaux espaces (vide = pas de changement)
+    permissions: str = ""    # Nouvelles permissions (vide = pas de changement)
 ) -> dict:
 ```
 
 ---
 
-## 6. System — Santé & identité
+### `admin_gc_notes` 👑
 
-### `system_health` 🔓
+Garbage Collector : identifie et traite les notes orphelines (plus vieilles que `max_age_days`).
 
 ```python
 @mcp.tool()
-async def system_health() -> dict:
+async def admin_gc_notes(
+    space_id: str = "",       # Espace cible (vide = tous les espaces)
+    max_age_days: int = 7,    # Seuil en jours
+    confirm: bool = False,    # False = dry-run, True = exécution
+    delete_only: bool = False # Si True + confirm : supprime SANS consolider
+) -> dict:
 ```
 
-**Retour** :
+**3 modes** :
+1. `confirm=False` (défaut) : **DRY-RUN** — scanne et rapporte le nombre de notes orphelines
+2. `confirm=True` : **CONSOLIDE** les notes orphelines via LLM (avec notice "⚠️ GC consolidation forcée")
+3. `confirm=True, delete_only=True` : **SUPPRIME** les notes sans consolider (perte de données)
+
+**Retour (dry-run)** :
 ```json
 {
   "status": "ok",
-  "services": {
-    "s3": {"status": "ok", "latency_ms": 45},
-    "llmaas": {"status": "ok", "model": "qwen3-2507:235b", "latency_ms": 120}
+  "mode": "dry-run",
+  "total_old_notes": 15,
+  "spaces": {
+    "projet-alpha": {
+      "old_notes": 10,
+      "agents": {"agent-disparu": 7, "agent-crash": 3},
+      "total_size": 12500
+    }
   },
-  "version": "0.1.0",
-  "uptime_seconds": 3600,
-  "spaces_count": 3
-}
-```
-
----
-
-### `system_about` 🔓
-
-```python
-@mcp.tool()
-async def system_about() -> dict:
-```
-
-**Retour** :
-```json
-{
-  "status": "ok",
-  "name": "Live Memory MCP Server",
-  "version": "0.1.0",
-  "description": "Mémoire de travail partagée pour agents IA collaboratifs",
-  "tools_count": 24,
-  "author": "Cloud Temple",
-  "documentation": "https://github.com/chrlesur/live-mem"
+  "message": "Dry-run : 15 notes orphelines trouvées. confirm=True pour consolider."
 }
 ```
 
@@ -646,6 +708,8 @@ async def system_about() -> dict:
 
 | Outil                | Read | Write | Admin | Public |
 | -------------------- | :--: | :---: | :---: | :----: |
+| `system_health`      |      |       |       |   ✅   |
+| `system_about`       |      |       |       |   ✅   |
 | `space_create`       |      |  ✅   |       |        |
 | `space_list`         |  ✅  |       |       |        |
 | `space_info`         |  ✅  |       |       |        |
@@ -659,7 +723,11 @@ async def system_about() -> dict:
 | `bank_read`          |  ✅  |       |       |        |
 | `bank_read_all`      |  ✅  |       |       |        |
 | `bank_list`          |  ✅  |       |       |        |
-| `bank_consolidate`   |      |  ✅   |       |        |
+| `bank_consolidate`   |      |  ✅*  |       |        |
+| `graph_connect`      |      |  ✅   |       |        |
+| `graph_push`         |      |  ✅   |       |        |
+| `graph_status`       |  ✅  |       |       |        |
+| `graph_disconnect`   |      |  ✅   |       |        |
 | `backup_create`      |      |  ✅   |       |        |
 | `backup_list`        |  ✅  |       |       |        |
 | `backup_restore`     |      |       |  ✅   |        |
@@ -669,9 +737,10 @@ async def system_about() -> dict:
 | `admin_list_tokens`  |      |       |  ✅   |        |
 | `admin_revoke_token` |      |       |  ✅   |        |
 | `admin_update_token` |      |       |  ✅   |        |
-| `system_health`      |      |       |       |   ✅   |
-| `system_about`       |      |       |       |   ✅   |
+| `admin_gc_notes`     |      |       |  ✅   |        |
+
+\* `bank_consolidate` : write suffit pour consolider ses propres notes (`agent=caller`). Admin requis pour `agent=""` (toutes) ou `agent=autre`.
 
 ---
 
-*Document généré le 20 février 2026 — Live Memory v0.1.0*
+*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*

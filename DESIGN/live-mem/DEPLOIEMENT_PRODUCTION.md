@@ -1,6 +1,6 @@
 # Guide de Déploiement Production — Live Memory
 
-> **Version** : 0.1.0 | **Date** : 2026-02-20 | **Auteur** : Cloud Temple
+> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
 
 ---
 
@@ -11,9 +11,14 @@ Live Memory est déployé via Docker Compose avec 2 services :
 | Service         | Rôle                                    | Image          | Port interne |
 | --------------- | --------------------------------------- | -------------- | ------------ |
 | **WAF**         | Reverse proxy sécurisé (Caddy + Coraza) | Custom (build) | 8080         |
-| **MCP Service** | Serveur MCP Python (24 outils)          | Custom (build) | 8002         |
+| **MCP Service** | Serveur MCP Python (30 outils)          | Custom (build) | 8002         |
 
 **Différence avec graph-memory** : Pas de Neo4j ni Qdrant → déploiement beaucoup plus léger.
+
+**Fonctionnalités exposées** :
+- 30 outils MCP via SSE (`/sse` + `/messages/*`)
+- Interface web de visualisation (`/live`)
+- 5 endpoints API REST (`/api/*`)
 
 ---
 
@@ -37,14 +42,14 @@ docker compose version  # v2
 ### 3.1 Mode développement (HTTP, port 8080)
 
 ```bash
-git clone https://github.com/chrlesur/live-mem.git
-cd live-mem
+git clone https://github.com/chrlesur/live-memory.git
+cd live-memory
 cp .env.example .env
 nano .env   # Remplir S3, LLMaaS, ADMIN_BOOTSTRAP_KEY
 
 docker compose build
 docker compose up -d
-docker compose logs -f mcp-service
+docker compose logs -f live-mem-service
 ```
 
 ### 3.2 Mode production (HTTPS, Let's Encrypt)
@@ -60,7 +65,10 @@ docker compose build && docker compose up -d
 
 ```bash
 # Health check
-curl -s http://localhost:8080/api/health | python3 -m json.tool
+curl -s http://localhost:8080/sse | head -1
+
+# Interface web
+open http://localhost:8080/live
 
 # WAF bloque injection SQL
 curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/api?id=1%20OR%201=1"
@@ -74,7 +82,7 @@ python3 scripts/mcp_cli.py token create admin-ops admin
 
 ---
 
-## 4. Docker Compose (pattern)
+## 4. Docker Compose
 
 ```yaml
 services:
@@ -87,15 +95,15 @@ services:
       # - "443:443"
     environment:
       - SITE_ADDRESS=${SITE_ADDRESS:-:8080}
-      - MCP_BACKEND=mcp-service:8002
+      - MCP_BACKEND=live-mem-service:8002
     depends_on:
-      mcp-service:
+      live-mem-service:
         condition: service_started
     restart: unless-stopped
     networks:
       - live-mem-network
 
-  mcp-service:
+  live-mem-service:
     build: .
     env_file: .env
     expose:
@@ -111,9 +119,23 @@ networks:
 
 **Principe clé** : Seul le WAF est exposé. Le service MCP est isolé dans le réseau Docker.
 
+**Container non-root** : Le Dockerfile utilise un utilisateur `mcp` (UID 10001) — aucune opération root après `USER mcp`.
+
 ---
 
-## 5. Backup & restauration
+## 5. Routes WAF
+
+| Route | WAF Coraza | Timeout | Usage |
+|---|---|---|---|
+| `/sse*` | ❌ (bypass) | Illimité | Connexions SSE longues |
+| `/messages/*` | ❌ (bypass) | 30min | Appels d'outils MCP |
+| `/api/*` | ✅ | 5min | API REST (interface web) |
+| `/live`, `/static/*` | ✅ | Standard | Interface web |
+| Tout le reste | ✅ | Standard | Health, etc. |
+
+---
+
+## 6. Backup & restauration
 
 ```bash
 # Créer un backup
@@ -128,42 +150,80 @@ python3 scripts/mcp_cli.py backup restore "projet-alpha/2026-02-20T18-00-00"
 ```
 
 Backups stockés sur S3 : `_backups/{space_id}/{timestamp}/`
-Rétention : les **5 derniers** par espace (configurable via `BACKUP_RETENTION_COUNT`).
 
 ---
 
-## 6. Monitoring
+## 7. Monitoring
 
 ```bash
 # Logs service MCP
-docker compose logs -f mcp-service
+docker compose logs -f live-mem-service
 
 # Logs WAF (requêtes bloquées)
 docker compose logs -f waf
 
-# Health check
+# Health check via CLI
 python3 scripts/mcp_cli.py health
 
 # Stats espace
 python3 scripts/mcp_cli.py space info projet-alpha
+
+# Interface web
+open http://localhost:8080/live
 ```
 
 ---
 
-## 7. Mise à jour
+## 8. Maintenance
+
+### GC des notes orphelines
+
+```bash
+# Dry-run : scanner les notes de plus de 7 jours
+python3 scripts/mcp_cli.py admin gc-notes --max-age 7
+
+# Consolider les notes orphelines via LLM
+python3 scripts/mcp_cli.py admin gc-notes --max-age 7 --confirm
+
+# Supprimer sans consolider
+python3 scripts/mcp_cli.py admin gc-notes --max-age 7 --confirm --delete-only
+```
+
+### Mise à jour
 
 ```bash
 git pull origin main
 docker compose build
 docker compose up -d
-docker compose logs -f mcp-service --tail=50
+docker compose logs -f live-mem-service --tail=50
 ```
 
 > **⚠️** Les données sont sur S3, pas dans les containers. Un `docker compose down` est sans risque.
 
 ---
 
-## 8. CLI distante
+## 9. Graph Bridge (optionnel)
+
+Pour connecter un espace à Graph Memory (mémoire long terme) :
+
+```bash
+# Connecter
+python3 scripts/mcp_cli.py graph connect projet-alpha \
+  https://graph-mem.mcp.cloud-temple.app \
+  $GRAPH_TOKEN \
+  projet-alpha-mem \
+  -o general
+
+# Pousser la bank dans le graphe
+python3 scripts/mcp_cli.py graph push projet-alpha
+
+# Vérifier le statut
+python3 scripts/mcp_cli.py graph status projet-alpha
+```
+
+---
+
+## 10. CLI distante
 
 ```bash
 # Depuis n'importe quel poste
@@ -175,7 +235,7 @@ python3 scripts/mcp_cli.py space list
 
 ---
 
-## 9. Commandes essentielles
+## 11. Commandes essentielles
 
 ```bash
 # Déploiement
@@ -191,8 +251,11 @@ python3 scripts/mcp_cli.py space create mon-projet --rules-file ./rules/standard
 # Vérifier
 python3 scripts/mcp_cli.py health
 python3 scripts/mcp_cli.py space list
+
+# Interface web
+open http://localhost:8080/live
 ```
 
 ---
 
-*Document généré le 20 février 2026 — Live Memory v0.1.0*
+*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*

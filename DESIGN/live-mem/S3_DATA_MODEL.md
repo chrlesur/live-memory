@@ -1,6 +1,6 @@
 # Modèle de Données S3 — Live Memory
 
-> **Version** : 0.1.0 | **Date** : 2026-02-20 | **Auteur** : Cloud Temple
+> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
 
 ---
 
@@ -20,8 +20,7 @@
 {bucket}/
 │
 ├── _system/                              # Données transversales
-│   ├── tokens.json                       # Registre des tokens d'authentification
-│   └── config.json                       # Métadonnées globales (optionnel)
+│   └── tokens.json                       # Registre des tokens d'authentification
 │
 ├── _backups/                             # Snapshots des espaces
 │   └── {space_id}/
@@ -98,20 +97,7 @@ Registre de tous les tokens d'authentification.
 }
 ```
 
-**Champs** :
-
-| Champ | Type | Description |
-|---|---|---|
-| `hash` | string | SHA-256 du token (préfixe `sha256:`) |
-| `name` | string | Nom descriptif |
-| `permissions` | string[] | `["read"]`, `["read", "write"]`, ou `["read", "write", "admin"]` |
-| `space_ids` | string[] | Espaces autorisés (`[]` = tous) |
-| `created_at` | ISO 8601 | Date de création |
-| `expires_at` | ISO 8601 / null | Date d'expiration (`null` = jamais) |
-| `last_used_at` | ISO 8601 / null | Dernière utilisation |
-| `revoked` | bool | `true` si révoqué |
-
-**Concurrence** : Protégé par un `asyncio.Lock` dédié dans le serveur.
+**Concurrence** : Protégé par un `asyncio.Lock` dédié (`LockManager.tokens`).
 
 ---
 
@@ -119,7 +105,7 @@ Registre de tous les tokens d'authentification.
 
 ### 4.1 `{space_id}/_meta.json`
 
-Métadonnées de l'espace. Créé par `space_create`, jamais modifié ensuite (sauf consolidation).
+Métadonnées de l'espace. Créé par `space_create`, mis à jour par `bank_consolidate` et `graph_push`.
 
 ```json
 {
@@ -130,9 +116,20 @@ Métadonnées de l'espace. Créé par `space_create`, jamais modifié ensuite (s
   "last_consolidation": "2026-02-20T16:00:00Z",
   "consolidation_count": 3,
   "total_notes_processed": 127,
+  "graph_memory": {
+    "url": "https://graph-mem.mcp.cloud-temple.app/sse",
+    "token": "gm_xxx...",
+    "memory_id": "projet-alpha-mem",
+    "ontology": "general",
+    "last_push": "2026-03-01T14:00:00Z",
+    "push_count": 3,
+    "files_pushed": 6
+  },
   "version": 1
 }
 ```
+
+**Champs ajoutés en v0.3.0** : `graph_memory` (objet optionnel) contenant la configuration de connexion vers Graph Memory et les métriques de push.
 
 ---
 
@@ -140,81 +137,7 @@ Métadonnées de l'espace. Créé par `space_create`, jamais modifié ensuite (s
 
 Les rules définissent la **structure souhaitée** de la memory bank. Elles sont **immuables** après création de l'espace.
 
-**Exemple : rules standard "Cline Memory Bank"** :
-
-```markdown
-# Memory Bank Rules
-
-## Structure de la Memory Bank
-
-La memory bank doit contenir les fichiers suivants, organisés hiérarchiquement :
-
-### 1. projectbrief.md
-- Document fondateur qui cadre tous les autres
-- Définit les exigences et objectifs principaux
-- Source de vérité pour le périmètre du projet
-
-### 2. productContext.md
-- Pourquoi ce projet existe
-- Problèmes qu'il résout
-- Comment il devrait fonctionner
-- Objectifs d'expérience utilisateur
-
-### 3. systemPatterns.md
-- Architecture système
-- Décisions techniques clés
-- Design patterns utilisés
-- Relations entre composants
-
-### 4. techContext.md
-- Technologies utilisées
-- Setup de développement
-- Contraintes techniques
-- Dépendances
-
-### 5. activeContext.md
-- Focus de travail actuel
-- Changements récents
-- Prochaines étapes
-- Décisions actives
-
-### 6. progress.md
-- Ce qui fonctionne
-- Ce qui reste à construire
-- Statut actuel
-- Problèmes connus
-
-## Règles de consolidation
-
-- Intégrer les nouvelles notes en conservant les informations existantes pertinentes
-- Supprimer les informations rendues obsolètes par les nouvelles notes
-- Maintenir un style factuel et concis
-- Toujours utiliser le format Markdown
-- Les fichiers doivent être autosuffisants (pas de références croisées implicites)
-```
-
-**Exemple : rules minimalistes "Journal de bord"** :
-
-```markdown
-# Rules — Journal de bord
-
-## Structure
-
-Un seul fichier : journal.md
-
-### journal.md
-- Entrées chronologiques (plus récent en haut)
-- Format : ## YYYY-MM-DD suivi des événements du jour
-- Résumé synthétique de chaque journée
-- Conserver les 30 derniers jours, archiver le reste
-
-## Règles de consolidation
-- Grouper les notes par jour
-- Résumer les notes redondantes
-- Marquer les décisions importantes en **gras**
-```
-
-> **Point clé** : Le MCP ne sait pas quels fichiers bank existent ni n'existeront. C'est le LLM qui lit les rules et crée/maintient les fichiers correspondants. Si les rules définissent 6 fichiers, le LLM créera 6 fichiers. Si les rules n'en définissent qu'un, il n'en créera qu'un.
+> **Point clé** : Le MCP ne sait pas quels fichiers bank existent ni n'existeront. C'est le LLM qui lit les rules et crée/maintient les fichiers correspondants.
 
 ---
 
@@ -226,27 +149,19 @@ Synthèse résiduelle produite par la dernière consolidation. Sert de **pont de
 ---
 consolidated_at: "2026-02-20T16:00:00Z"
 notes_processed: 42
-consolidation_number: 3
 ---
 
 ## Synthèse de la consolidation #3
 
 ### Faits principaux
-- Le module d'authentification a été implémenté et testé (Bearer tokens)
-- Décision : utiliser S3 comme unique backend (pas de base de données)
-- Le pipeline de consolidation LLM est fonctionnel
+- Le module d'authentification a été implémenté et testé
+- Décision : utiliser S3 comme unique backend
 
 ### Points d'attention
-- Le timeout LLM de 60s est trop court pour les gros espaces
-- Question ouverte : faut-il supporter les webhooks pour trigger la consolidation ?
-
-### Prochaines priorités identifiées
-- Implémenter le système de backup
-- Ajouter le rate limiting sur le WAF
-- Écrire la documentation utilisateur
+- Le timeout LLM de 60s est trop court
 ```
 
-Ce fichier est **écrasé** à chaque consolidation. Les notes live sont **supprimées** après consolidation.
+Ce fichier est **écrasé** à chaque consolidation.
 
 ---
 
@@ -257,13 +172,6 @@ Chaque note est un fichier Markdown avec front-matter YAML.
 **Convention de nommage** :
 ```
 {YYYYMMDD}T{HHMMSS}_{agent}_{category}_{uuid8}.md
-```
-
-Exemples :
-```
-20260220T140000_cline-dev_observation_a1b2c3d4.md
-20260220T140130_claude-review_decision_e5f6a7b8.md
-20260220T141500_cline-dev_todo_c9d0e1f2.md
 ```
 
 **Format du contenu** :
@@ -278,22 +186,7 @@ space_id: "projet-alpha"
 ---
 
 Le module d'authentification Bearer token fonctionne correctement.
-Tous les tests passent :
-- Création de token : OK
-- Vérification SHA-256 : OK
-- Permissions read/write/admin : OK
-- Expiration : OK
 ```
-
-**Champs front-matter** :
-
-| Champ | Type | Obligatoire | Description |
-|---|---|---|---|
-| `timestamp` | ISO 8601 | ✅ | Horodatage de la note |
-| `agent` | string | ✅ | Identifiant de l'agent auteur |
-| `category` | string | ✅ | Catégorie (observation, decision, etc.) |
-| `tags` | string[] | ❌ | Tags optionnels |
-| `space_id` | string | ✅ | Espace d'appartenance |
 
 ---
 
@@ -301,19 +194,7 @@ Tous les tests passent :
 
 Les fichiers bank sont des Markdown purs, **sans front-matter**. Leur contenu est intégralement géré par le LLM lors de la consolidation.
 
-Exemples :
-```
-bank/projectbrief.md
-bank/activeContext.md
-bank/progress.md
-bank/systemPatterns.md
-bank/techContext.md
-bank/productContext.md
-bank/journal.md            ← Si les rules définissent un journal
-bank/api-specs.md          ← Si les rules le demandent
-```
-
-Les noms de fichiers sont **décidés par le LLM** en se basant sur les rules. Le MCP ne connaît pas les noms à l'avance.
+Les noms de fichiers sont **décidés par le LLM** en se basant sur les rules.
 
 ---
 
@@ -335,8 +216,13 @@ Les noms de fichiers sont **décidés par le LLM** en se basant sur les rules. L
 | `bank_read_all` | LIST `bank/*`, GET tous | 1 LIST + N GETs |
 | `bank_list` | LIST `bank/*` | 1 LIST |
 | `bank_consolidate` | GET rules + GET live/* + GET bank/* + PUT bank/* + DELETE live/* + PUT _synthesis | Beaucoup |
+| `graph_connect` | GET+PUT `_meta.json` (ajout config graph_memory) | 1 GET + 1 PUT |
+| `graph_push` | LIST `bank/*`, GET `bank/*`, GET+PUT `_meta.json` | N GETs + 1 PUT |
+| `graph_status` | GET `_meta.json` | 1 GET |
+| `graph_disconnect` | GET+PUT `_meta.json` (retrait config graph_memory) | 1 GET + 1 PUT |
 | `backup_create` | LIST + GET tout → PUT dans `_backups/` | N GETs + N PUTs |
 | `backup_restore` | GET depuis `_backups/` → PUT dans `{space_id}/` | N GETs + N PUTs |
+| `admin_gc_notes` | LIST `*/live/*`, GET notes anciennes, DELETE/consolidate | Variable |
 
 ---
 
@@ -344,7 +230,7 @@ Les noms de fichiers sont **décidés par le LLM** en se basant sur les rules. L
 
 ### 6.1 Dell ECS — Configuration hybride
 
-Identique à graph-memory : SigV2 pour PUT/GET/DELETE, SigV4 pour HEAD/LIST. Voir `CLOUD_TEMPLE_SERVICES.md`.
+SigV2 pour PUT/GET/DELETE, SigV4 pour HEAD/LIST. Voir `CLOUD_TEMPLE_SERVICES.md`.
 
 ### 6.2 Limites
 
@@ -358,33 +244,12 @@ Identique à graph-memory : SigV2 pour PUT/GET/DELETE, SigV4 pour HEAD/LIST. Voi
 
 ### 6.3 Pagination
 
-Pour les espaces avec beaucoup de notes (>1000), `LIST_OBJECTS_V2` retourne max 1000 objets par appel. Le `StorageService` doit gérer la pagination automatiquement :
-
-```python
-async def list_all_objects(self, prefix: str) -> list:
-    """Liste TOUS les objets sous un préfixe, avec pagination."""
-    all_keys = []
-    continuation_token = None
-    
-    while True:
-        params = {"Bucket": self.bucket, "Prefix": prefix, "MaxKeys": 1000}
-        if continuation_token:
-            params["ContinuationToken"] = continuation_token
-        
-        response = self._client_v4.list_objects_v2(**params)
-        all_keys.extend(response.get("Contents", []))
-        
-        if not response.get("IsTruncated"):
-            break
-        continuation_token = response["NextContinuationToken"]
-    
-    return all_keys
-```
+Pour les espaces avec beaucoup de notes (>1000), le `StorageService` gère la pagination automatiquement via `list_objects_v2` avec `ContinuationToken`.
 
 ### 6.4 Cohérence
 
-S3 offre une **cohérence forte** (strong consistency) depuis 2020 pour les PUT et DELETE suivis de GET. Pas besoin de délai d'attente après écriture.
+S3 offre une **cohérence forte** (strong consistency) pour les PUT et DELETE suivis de GET. Pas besoin de délai d'attente après écriture.
 
 ---
 
-*Document généré le 20 février 2026 — Live Memory v0.1.0*
+*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*

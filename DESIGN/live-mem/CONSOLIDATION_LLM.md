@@ -1,6 +1,6 @@
 # Pipeline de Consolidation LLM — Live Memory
 
-> **Version** : 0.1.0 | **Date** : 2026-02-20 | **Auteur** : Cloud Temple
+> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
 
 ---
 
@@ -12,10 +12,12 @@ La consolidation est le **cœur intelligent** de live-mem. C'est le processus pa
 AVANT                                    APRÈS
 ─────                                    ─────
 live/                                    live/
-├── note_001.md (observation)            └── (vide — tout nettoyé)
-├── note_002.md (decision)
-├── note_003.md (todo)                   bank/
-├── ... (42 notes)                       ├── projectbrief.md    (créé/MAJ)
+├── note_001.md (agent-A, observation)   ├── note_010.md (agent-B, todo)
+├── note_002.md (agent-A, decision)      └── note_011.md (agent-B, insight)
+├── note_003.md (agent-A, todo)              ↑ Notes d'agent-B non touchées
+├── ... (42 notes agent-A)
+├── note_010.md (agent-B, todo)          bank/
+└── note_011.md (agent-B, insight)       ├── projectbrief.md    (créé/MAJ)
                                          ├── activeContext.md   (MAJ)
 bank/                                    ├── progress.md        (MAJ)
 ├── projectbrief.md (existant)           ├── systemPatterns.md  (MAJ)
@@ -28,36 +30,63 @@ bank/                                    ├── progress.md        (MAJ)
 _synthesis.md (précédent)
 ```
 
-**Principe fondamental** : Les agents n'écrivent JAMAIS dans la bank. Seul le LLM le fait, guidé par les rules.
+**Principes fondamentaux** :
+- Les agents n'écrivent JAMAIS dans la bank. Seul le LLM le fait, guidé par les rules
+- Chaque agent consolide **ses propres notes** (paramètre `agent`)
+- Les notes des autres agents restent intactes dans le live
 
 ---
 
-## 2. Pipeline détaillé
+## 2. Paramètre `agent` (v0.2.0+)
+
+Le paramètre `agent` de `bank_consolidate` contrôle le filtrage des notes :
+
+| Valeur | Comportement | Permission |
+|--------|-------------|------------|
+| `agent=""` (vide) | Consolide **TOUTES** les notes | Admin requis |
+| `agent="cline-dev"` (= caller) | Consolide uniquement les notes de cet agent | Write suffit |
+| `agent="autre"` (≠ caller) | Consolide les notes d'un autre agent | Admin requis |
+
+Le filtrage se fait sur le nom de fichier : `{ts}_{agent}_{cat}_{uuid}.md` — on cherche `_{agent}_` dans le filename.
+
+---
+
+## 3. Pipeline détaillé
 
 ### Étape 1 — Collecte des inputs
 
 ```python
-# 1a. Lire les rules (immuables)
-rules = await storage.get("{space_id}/_rules.md")
+async def _collect_inputs(self, space_id: str, agent: str = "") -> dict:
+    # 1a. Lire les rules (immuables)
+    rules = await storage.get("{space_id}/_rules.md")
 
-# 1b. Lire la synthèse précédente (contexte cumulatif)
-synthesis = await storage.get("{space_id}/_synthesis.md")  # ou None
+    # 1b. Lire la synthèse précédente (contexte cumulatif)
+    synthesis = await storage.get("{space_id}/_synthesis.md")
 
-# 1c. Lire TOUTES les notes live
-live_notes = await storage.list_and_get("{space_id}/live/*")
-# Triées par timestamp (chronologique)
-# Exclure .keep
+    # 1c. Lire les notes live
+    notes_raw = await storage.list_and_get("{space_id}/live/")
+    notes_raw.sort(key=lambda n: n["key"])  # Tri chronologique
 
-# 1d. Lire TOUS les fichiers bank actuels
-bank_files = await storage.list_and_get("{space_id}/bank/*")
-# Exclure .keep
+    # 1d. Filtrer par agent si spécifié
+    if agent:
+        notes_raw = [n for n in notes_raw if f"_{agent}_" in n["key"].split("/")[-1]]
+
+    # 1e. Limiter au max_notes (les plus anciennes d'abord)
+    if len(notes_raw) > self._max_notes:
+        notes_raw = notes_raw[:self._max_notes]
+
+    # 1f. Garder les clés pour suppression ultérieure
+    notes_keys = [n["key"] for n in notes_raw]
+
+    # 1g. Lire TOUS les fichiers bank actuels
+    bank_files = await storage.list_and_get("{space_id}/bank/")
 ```
 
-### Étape 2 — Préparer le prompt LLM
+### Étape 2 — Construire le prompt LLM
 
-Le prompt est en **une seule requête** (pas de chunking) car on exploite la fenêtre de 100K tokens de qwen3-2507:235b.
+Le prompt est en **une seule requête** car on exploite la fenêtre de 100K tokens de qwen3-2507:235b.
 
-**Calcul du budget tokens** :
+**Budget tokens estimé** :
 
 | Composant | Tokens estimés |
 |---|---|
@@ -68,56 +97,67 @@ Le prompt est en **une seule requête** (pas de chunking) car on exploite la fen
 | Fichiers bank existants (6 × ~1000 tokens) | ~6000 |
 | **Total input** | **~17K tokens** |
 | Marge pour la réponse | ~80K tokens |
-| **Total** | **~97K / 100K** |
-
-Même avec un gros espace (200 notes, 10 fichiers bank), on reste dans les 100K tokens.
 
 ### Étape 3 — Appel LLM
 
 Un **seul appel** LLM pour toute la consolidation.
 
 ```python
-response = await llm_client.chat.completions.create(
-    model="qwen3-2507:235b",
-    messages=[
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": consolidation_prompt}
-    ],
-    max_tokens=100000,
-    temperature=0.3,
-    response_format={"type": "json_object"}
+response = await self._client.chat.completions.create(
+    model=self._model,           # qwen3-2507:235b
+    messages=messages,
+    max_tokens=self._max_tokens, # 100000
+    temperature=self._temperature, # 0.3
+    # Note: response_format non utilisé (pas supporté par tous les endpoints)
+    # Le JSON est parsé manuellement depuis la réponse
 )
 ```
 
-### Étape 4 — Écriture des résultats
+### Étape 4 — Extraction JSON robuste
+
+La réponse LLM peut contenir du JSON de plusieurs façons :
 
 ```python
-result = json.loads(response.choices[0].message.content)
+def _extract_json(text: str) -> str:
+    # 1. Retirer les blocs <think>...</think> (Qwen thinking mode)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 
-# 4a. Écrire chaque fichier bank
-for file_entry in result["bank_files"]:
-    async with bank_locks[(space_id, file_entry["filename"])]:
-        await storage.put(f"{space_id}/bank/{file_entry['filename']}", file_entry["content"])
+    # 2. Chercher un bloc ```json ... ```
+    match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+    if match: return match.group(1).strip()
 
-# 4b. Écrire la synthèse résiduelle
-await storage.put(f"{space_id}/_synthesis.md", result["synthesis"])
+    # 3. Chercher un bloc ``` ... ``` commençant par {
+    # 4. Chercher le premier { ... } (JSON brut)
+    # 5. Fallback : retourner le texte tel quel
+```
 
-# 4c. Supprimer toutes les notes live
-for note in live_notes:
-    await storage.delete(note.key)
+### Étape 5 — Écriture des résultats
 
-# 4d. Mettre à jour _meta.json
+```python
+# 5a. Écrire chaque fichier bank mis à jour
+for file_entry in llm_output["bank_files"]:
+    await storage.put(f"{space_id}/bank/{filename}", content)
+
+# 5b. Écrire la synthèse résiduelle (avec front-matter)
+await storage.put(f"{space_id}/_synthesis.md", synthesis_md)
+
+# 5c. Mettre à jour _meta.json (compteurs)
 meta["last_consolidation"] = now
 meta["consolidation_count"] += 1
-meta["total_notes_processed"] += len(live_notes)
-await storage.put(f"{space_id}/_meta.json", json.dumps(meta))
+meta["total_notes_processed"] += notes_count
+await storage.put_json(f"{space_id}/_meta.json", meta)
+
+# 5d. Supprimer les notes live traitées (EN DERNIER — atomicité)
+await storage.delete_many(notes_keys)
 ```
+
+**Point clé** : seules les notes collectées à l'étape 1 sont supprimées. Les notes arrivées pendant la consolidation restent dans live/ pour la prochaine consolidation.
 
 ---
 
-## 3. Prompts
+## 4. Prompts
 
-### 3.1 Prompt système
+### 4.1 Prompt système
 
 ```
 Tu es un assistant spécialisé dans la maintenance de Memory Banks pour des projets.
@@ -140,39 +180,34 @@ Règles :
 - Conserve les informations existantes qui sont toujours pertinentes
 - Supprime les informations rendues obsolètes par les nouvelles notes
 - Chaque fichier bank doit être en Markdown pur (pas de front-matter)
-- La synthèse doit être concise mais couvrir les points clés des notes traitées
+- La synthèse doit être concise mais couvrir les points clés
 - Si un fichier bank n'a pas besoin de modification, NE L'INCLUS PAS dans bank_files
 ```
 
-### 3.2 Prompt utilisateur (consolidation)
+### 4.2 Prompt utilisateur (consolidation)
 
 ```
 === RULES DE L'ESPACE "{space_id}" ===
 {contenu de _rules.md}
 
-=== SYNTHÈSE PRÉCÉDENTE (consolidation #{n-1}) ===
+=== SYNTHÈSE PRÉCÉDENTE ===
 {contenu de _synthesis.md, ou "Aucune — première consolidation"}
 
 === NOTES LIVE À INTÉGRER ({count} notes) ===
-{pour chaque note, chronologiquement :}
 
---- Note {i}/{count} ---
-Timestamp: {timestamp}
-Agent: {agent}
-Catégorie: {category}
-Tags: {tags}
+--- Note 1/{count} ---
+{contenu complet de la note (front-matter + corps)}
 
-{contenu de la note}
-
---- Fin note {i} ---
+--- Note 2/{count} ---
+...
 
 === FICHIERS BANK ACTUELS ===
-{pour chaque fichier bank existant :}
 
---- Fichier: {filename} ---
-{contenu du fichier}
+--- Fichier: activeContext.md ---
+{contenu}
+--- Fin fichier: activeContext.md ---
 
---- Fin fichier: {filename} ---
+...
 
 {ou "Aucun fichier bank — première consolidation, créer les fichiers selon les rules."}
 
@@ -192,51 +227,28 @@ Retourne un JSON avec cette structure exacte :
 IMPORTANT :
 - N'inclus QUE les fichiers qui ont été modifiés ou créés
 - Les fichiers inchangés NE DOIVENT PAS apparaître dans bank_files
-- La synthèse résiduelle doit résumer les notes traitées de façon concise
-- Le contenu des fichiers bank doit être du Markdown pur, autosuffisant
+- La synthèse résiduelle doit résumer les notes traitées
+- Le contenu des fichiers bank doit être du Markdown pur
 ```
 
-### 3.3 Format de réponse attendu
+### 4.3 Format de réponse attendu
 
 ```json
 {
   "bank_files": [
     {
       "filename": "activeContext.md",
-      "content": "# Active Context\n\n## Focus actuel\n\nRefactoring du module d'authentification...",
+      "content": "# Active Context\n\n## Focus actuel\n...",
       "action": "updated"
     },
     {
       "filename": "progress.md",
-      "content": "# Progress\n\n## Ce qui fonctionne\n- Module auth : terminé\n...",
+      "content": "# Progress\n\n## Ce qui fonctionne\n...",
       "action": "updated"
-    },
-    {
-      "filename": "systemPatterns.md",
-      "content": "# System Patterns\n\n## Architecture\n- Pattern S3-only...",
-      "action": "created"
     }
   ],
-  "synthesis": "## Synthèse de la consolidation #4\n\n### Faits principaux\n- L'auth fonctionne\n- Décision S3-only confirmée\n\n### Points d'attention\n- Timeout LLM à surveiller\n\n### Prochaines étapes\n- Backup system\n- Documentation"
+  "synthesis": "## Synthèse\n\n### Faits principaux\n- L'auth fonctionne\n..."
 }
-```
-
----
-
-## 4. Première consolidation
-
-Lors de la première consolidation d'un espace (bank vide), le LLM doit **créer** tous les fichiers définis dans les rules :
-
-```
-Input:
-- Rules : définit 6 fichiers (projectbrief, productContext, etc.)
-- Synthèse précédente : "Aucune — première consolidation"
-- Notes live : 15 notes initiales
-- Fichiers bank : "Aucun fichier bank — première consolidation"
-
-Output attendu:
-- bank_files : 6 fichiers créés (action: "created" pour tous)
-- synthesis : première synthèse
 ```
 
 ---
@@ -246,12 +258,18 @@ Output attendu:
 ### 5.1 Réponse LLM non-JSON
 
 ```python
-try:
-    result = json.loads(response.choices[0].message.content)
-except json.JSONDecodeError:
-    # Retry 1 fois avec un prompt plus explicite
-    # Si échec → retourner erreur, ne PAS supprimer les notes live
-    return {"status": "error", "message": "LLM returned invalid JSON"}
+for attempt in range(2):  # 1 essai + 1 retry
+    raw_content = response.choices[0].message.content
+    json_str = _extract_json(raw_content)  # Gère <think>, ```json, etc.
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError:
+        if attempt == 0:
+            # Retry avec rappel explicite
+            messages.append({"role": "assistant", "content": raw_content})
+            messages.append({"role": "user", "content": "Retourne UNIQUEMENT un JSON valide."})
+            continue
+        return {"status": "error", "message": "LLM returned invalid JSON after retry"}
 ```
 
 ### 5.2 Timeout LLM
@@ -263,12 +281,12 @@ Le timeout est configurable (`CONSOLIDATION_TIMEOUT`, défaut 600s). Si timeout 
 
 ### 5.3 Écriture partielle
 
-Si l'écriture S3 échoue en cours de route (ex: certains fichiers bank écrits, d'autres non) :
+Si l'écriture S3 échoue en cours de route :
 - Les fichiers déjà écrits sont OK (cohérents)
-- Les notes live NE SONT PAS supprimées (on ne supprime qu'après succès complet)
-- La prochaine consolidation retraitera les notes → les fichiers bank non écrits seront créés
+- Les notes live NE SONT PAS supprimées (suppression en dernier)
+- La prochaine consolidation retraitera les notes
 
-**Principe** : on ne supprime les notes live que quand TOUT est écrit avec succès (écriture atomique logique).
+**Principe** : on ne supprime les notes live que quand TOUT est écrit avec succès (atomicité logique).
 
 ### 5.4 Notes trop nombreuses
 
@@ -276,51 +294,19 @@ Si `live_notes_count > CONSOLIDATION_MAX_NOTES` (défaut 500) :
 - Prendre les 500 notes les plus anciennes
 - Les consolider
 - Les notes restantes attendront la prochaine consolidation
-- Retourner `{"status": "ok", "notes_processed": 500, "notes_remaining": 150}`
 
 ---
 
 ## 6. Configuration LLMaaS
 
 ```env
-# API
 LLMAAS_API_URL=https://api.ai.cloud-temple.com/v1
 LLMAAS_API_KEY=your_key
-
-# Modèle
 LLMAAS_MODEL=qwen3-2507:235b
 LLMAAS_MAX_TOKENS=100000
 LLMAAS_TEMPERATURE=0.3
-
-# Timeouts
-CONSOLIDATION_TIMEOUT=600          # Timeout par appel LLM (secondes)
-CONSOLIDATION_MAX_NOTES=500        # Max notes par consolidation
-```
-
-### Client LLM
-
-Même pattern que graph-memory : `AsyncOpenAI` compatible.
-
-```python
-from openai import AsyncOpenAI
-
-class ConsolidatorService:
-    def __init__(self):
-        self._client = AsyncOpenAI(
-            base_url=settings.llmaas_api_url,  # Inclut déjà /v1
-            api_key=settings.llmaas_api_key,
-            timeout=settings.consolidation_timeout
-        )
-    
-    async def consolidate(self, space_id: str, ...) -> dict:
-        response = await self._client.chat.completions.create(
-            model=settings.llmaas_model,
-            messages=[...],
-            max_tokens=settings.llmaas_max_tokens,
-            temperature=settings.llmaas_temperature,
-            response_format={"type": "json_object"}
-        )
-        return json.loads(response.choices[0].message.content)
+CONSOLIDATION_TIMEOUT=600
+CONSOLIDATION_MAX_NOTES=500
 ```
 
 ---
@@ -331,6 +317,8 @@ Chaque consolidation retourne des métriques :
 
 ```json
 {
+  "status": "ok",
+  "space_id": "projet-alpha",
   "notes_processed": 42,
   "bank_files_updated": 3,
   "bank_files_created": 1,
@@ -343,7 +331,7 @@ Chaque consolidation retourne des métriques :
 }
 ```
 
-Ces métriques sont aussi loguées sur `stderr` pour le monitoring.
+Ces métriques sont aussi loguées sur `stderr` via le module `logging`.
 
 ---
 
@@ -352,40 +340,49 @@ Ces métriques sont aussi loguées sur `stderr` pour le monitoring.
 ### Scénario 1 : Première consolidation (espace neuf)
 
 ```
-Input: 15 notes, 0 fichiers bank, pas de synthèse
+Input: 15 notes agent-A, 0 fichiers bank, pas de synthèse
 → LLM crée 6 fichiers bank + synthèse
-→ 15 notes supprimées
+→ 15 notes agent-A supprimées
 → Durée : ~20s
 ```
 
-### Scénario 2 : Consolidation incrémentale (cas typique)
+### Scénario 2 : Consolidation par agent (cas typique)
 
 ```
-Input: 30 notes, 6 fichiers bank existants, synthèse précédente
+Input: 30 notes agent-A, 10 notes agent-B, 6 fichiers bank existants
+→ bank_consolidate(agent="agent-A")
 → LLM met à jour 3 fichiers (activeContext, progress, techContext)
-→ 3 fichiers inchangés (projectbrief, productContext, systemPatterns)
-→ 30 notes supprimées, nouvelle synthèse
+→ 30 notes agent-A supprimées
+→ 10 notes agent-B restent dans live/
 → Durée : ~25s
 ```
 
 ### Scénario 3 : Gros batch (beaucoup de notes)
 
 ```
-Input: 600 notes (> CONSOLIDATION_MAX_NOTES=500)
+Input: 600 notes agent-A (> CONSOLIDATION_MAX_NOTES=500)
 → Les 500 plus anciennes sont traitées
 → 100 notes restent dans live/
-→ Retour : {"notes_processed": 500, "notes_remaining": 100}
 → L'agent peut relancer bank_consolidate pour les 100 restantes
 ```
 
 ### Scénario 4 : Pas de notes (rien à faire)
 
 ```
-Input: 0 notes
+Input: 0 notes (ou 0 notes de l'agent spécifié)
 → Retour immédiat : {"notes_processed": 0, "message": "No new notes to consolidate"}
 → Pas d'appel LLM (économie de tokens)
 ```
 
+### Scénario 5 : GC — Consolidation forcée
+
+```
+admin_gc_notes(space_id="projet-alpha", max_age_days=7, confirm=True)
+→ Identifie les notes de plus de 7 jours
+→ Les consolide via LLM (avec notice "⚠️ GC consolidation forcée")
+→ Supprime les notes traitées
+```
+
 ---
 
-*Document généré le 20 février 2026 — Live Memory v0.1.0*
+*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*

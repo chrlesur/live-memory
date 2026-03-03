@@ -1,6 +1,6 @@
 # Gestion de la Concurrence Multi-Agents — Live Memory
 
-> **Version** : 0.1.0 | **Date** : 2026-02-20 | **Auteur** : Cloud Temple
+> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
 
 ---
 
@@ -36,14 +36,8 @@ Seul `bank_consolidate` écrit dans la bank (les agents n'y écrivent jamais dir
 **Solution** : Un `asyncio.Lock` **par espace** pour la consolidation.
 
 ```python
-from collections import defaultdict
-import asyncio
-
-# Un lock par space_id pour la consolidation
-_consolidation_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-
-async def bank_consolidate(space_id: str) -> dict:
-    lock = _consolidation_locks[space_id]
+async def bank_consolidate(space_id: str, agent: str = "") -> dict:
+    lock = get_lock_manager().consolidation(space_id)
     
     if lock.locked():
         return {
@@ -52,15 +46,13 @@ async def bank_consolidate(space_id: str) -> dict:
         }
     
     async with lock:
-        # ... pipeline de consolidation (peut durer 30-60s)
-        result = await consolidator.consolidate(space_id)
-        return result
+        return await get_consolidator().consolidate(space_id, agent=agent)
 ```
 
 **Comportement** :
 - Si un agent demande une consolidation pendant qu'une autre est en cours → retour immédiat `"conflict"`
 - L'agent peut réessayer plus tard
-- Les deux espaces différents peuvent être consolidés en parallèle (locks indépendants)
+- Deux espaces différents peuvent être consolidés en parallèle (locks indépendants)
 
 ---
 
@@ -71,27 +63,17 @@ Deux admins créant/modifiant des tokens simultanément pourraient écraser les 
 **Solution** : Un `asyncio.Lock` unique pour le fichier tokens.
 
 ```python
-_tokens_lock = asyncio.Lock()
-
-async def save_tokens(tokens_data: dict):
-    async with _tokens_lock:
-        content = json.dumps(tokens_data, indent=2)
-        await storage.put("_system/tokens.json", content)
-
-async def load_and_modify_tokens(modifier_fn):
-    """Pattern read-modify-write atomique pour les tokens."""
-    async with _tokens_lock:
-        tokens_data = await storage.get_json("_system/tokens.json")
-        modified = modifier_fn(tokens_data)
-        await storage.put("_system/tokens.json", json.dumps(modified, indent=2))
-        return modified
+async with get_lock_manager().tokens:
+    tokens_data = await storage.get_json("_system/tokens.json")
+    modified = modifier_fn(tokens_data)
+    await storage.put_json("_system/tokens.json", modified)
 ```
 
 ---
 
 ### 2.4 Fichier _meta.json — ⚠️ CONFLIT POSSIBLE
 
-Mis à jour lors de la consolidation (compteurs). Protégé par le lock de consolidation (même section critique).
+Mis à jour lors de la consolidation et du `graph_push`. Protégé par le lock de consolidation pour les consolidations. Les opérations graph utilisent une lecture-modification-écriture séquentielle.
 
 ---
 
@@ -102,9 +84,10 @@ Mis à jour lors de la consolidation (compteurs). Protégé par le lock de conso
 | `live_note` (N agents simultanés) | Aucun | Fichiers uniques (timestamp+UUID) | **Zéro** |
 | `live_read` / `live_search` (lecture //) | Aucun | Lectures S3 parallèles | **Zéro** |
 | `bank_read` / `bank_read_all` (lecture //) | Aucun | Lectures S3 parallèles | **Zéro** |
-| `bank_consolidate` (2 agents, même espace) | Écrasement | `asyncio.Lock` par espace | Sérialisation (le 2ème reçoit "conflict") |
+| `bank_consolidate` (2 agents, même espace) | Écrasement | `asyncio.Lock` par espace | Le 2ème reçoit "conflict" |
 | `bank_consolidate` (2 agents, espaces différents) | Aucun | Locks indépendants | **Zéro** |
-| `admin_create_token` (2 admins) | Écrasement tokens.json | `asyncio.Lock` unique tokens | Sérialisation (négligeable) |
+| `admin_create_token` (2 admins) | Écrasement tokens.json | `asyncio.Lock` unique tokens | Sérialisation (~200ms) |
+| `graph_connect` / `graph_push` | MAJ _meta.json | Séquentiel (opérations longues) | **Zéro** |
 | `backup_create` (même espace) | Lecture seule de l'espace | Aucun lock nécessaire (snapshot) | **Zéro** |
 
 ---
@@ -116,11 +99,8 @@ Mis à jour lors de la consolidation (compteurs). Protégé par le lock de conso
 Le serveur MCP est un **processus unique** (une seule instance Python). Toutes les requêtes passent par le même event loop asyncio. Les `asyncio.Lock` sont donc suffisants.
 
 ```python
-import asyncio
-from collections import defaultdict
-
 class LockManager:
-    """Gestionnaire centralisé des locks."""
+    """Gestionnaire centralisé des locks asyncio."""
     
     def __init__(self):
         self._consolidation_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
@@ -134,24 +114,15 @@ class LockManager:
     def tokens(self) -> asyncio.Lock:
         """Lock unique pour tokens.json."""
         return self._tokens_lock
-
-# Singleton
-_lock_manager = None
-
-def get_lock_manager() -> LockManager:
-    global _lock_manager
-    if _lock_manager is None:
-        _lock_manager = LockManager()
-    return _lock_manager
 ```
 
 ### 4.2 Pourquoi pas de locks S3 ?
 
-S3 n'a pas de mécanisme de lock natif. Les alternatives (lock files, ETags conditionnels) ajoutent de la complexité pour un gain marginal dans notre cas :
+S3 n'a pas de mécanisme de lock natif. Les alternatives ajoutent de la complexité pour un gain marginal :
 
 - **Lock files S3** : Fragiles (si le serveur crash, le lock reste → deadlock)
-- **ETags conditionnels** : Dell ECS ne supporte pas bien `If-Match` sur PUT (cf. problèmes SigV4)
-- **DynamoDB locks** : Hors périmètre (pas de DynamoDB)
+- **ETags conditionnels** : Dell ECS ne supporte pas bien `If-Match` sur PUT
+- **DynamoDB locks** : Hors périmètre
 
 Le `asyncio.Lock` en mémoire est **suffisant** car :
 1. Le serveur MCP est un processus unique
@@ -165,7 +136,7 @@ Si live-mem devait tourner en multi-instance (load balancing), il faudrait :
 - Ou un système de lease sur S3 (lock file avec TTL)
 - Ou un routage par espace (chaque instance gère un sous-ensemble d'espaces)
 
-Ce n'est **pas prévu** pour la v0.1.0.
+Ce n'est **pas prévu** pour la v0.4.0.
 
 ---
 
@@ -179,27 +150,27 @@ T+0s: Agent B → live_note("decision", "On utilise FastAPI") → PUT S3 : note_
 T+0s: Agent C → live_note("todo", "Écrire les tests")      → PUT S3 : note_C.md ✅
 ```
 
-**Résultat** : 3 fichiers distincts, aucun conflit, aucun lock.
+3 fichiers distincts, aucun conflit, aucun lock.
 
 ### Scénario 2 : 2 agents consolident en même temps
 
 ```
-T+0s: Agent A → bank_consolidate("projet-alpha")
-      → Lock acquis ✅, consolidation démarre (prend 30s)
+T+0s:  Agent A → bank_consolidate("projet-alpha", agent="agent-A")
+       → Lock acquis ✅, consolidation démarre (prend 30s)
 
-T+5s: Agent B → bank_consolidate("projet-alpha")
-      → Lock déjà pris → retour immédiat {"status": "conflict"} ⚡
+T+5s:  Agent B → bank_consolidate("projet-alpha", agent="agent-B")
+       → Lock déjà pris → retour immédiat {"status": "conflict"} ⚡
 
 T+30s: Agent A → consolidation terminée, lock relâché ✅
-T+31s: Agent B → bank_consolidate("projet-alpha")
+T+31s: Agent B → bank_consolidate("projet-alpha", agent="agent-B")
        → Lock acquis ✅, consolidation démarre
 ```
 
 ### Scénario 3 : Agent écrit pendant une consolidation
 
 ```
-T+0s:  Agent A → bank_consolidate("projet-alpha")
-       → Lock consolidation acquis, lit les notes live
+T+0s:  Agent A → bank_consolidate("projet-alpha", agent="agent-A")
+       → Lock acquis, lit les notes live de agent-A
 
 T+5s:  Agent B → live_note("observation", "Nouveau fait")
        → PUT S3 : note_new.md ✅ (pas de lock nécessaire)
@@ -207,36 +178,20 @@ T+5s:  Agent B → live_note("observation", "Nouveau fait")
        → Elle sera traitée à la PROCHAINE consolidation
 
 T+30s: Agent A → consolidation terminée
-       → Les notes existantes au T+0s sont supprimées
-       → note_new.md reste dans live/ (elle est postérieure)
+       → Seules les notes de agent-A collectées au T+0 sont supprimées
+       → note_new.md (agent-B) reste dans live/
 ```
 
-**⚠️ Point important** : La consolidation capture un snapshot des notes au moment où elle lit le live. Les notes arrivées après ne sont pas incluses et ne sont pas supprimées.
-
-**Implémentation** :
-```python
-# Au début de la consolidation, noter les clés des notes lues
-notes_keys = [note.key for note in live_notes]
-
-# À la fin, ne supprimer que ces notes (pas les nouvelles)
-for key in notes_keys:
-    await storage.delete(key)
-```
-
-### Scénario 4 : 2 admins créent des tokens simultanément
+### Scénario 4 : Graph push pendant une consolidation
 
 ```
-T+0s: Admin A → admin_create_token("agent-1", "read,write")
-      → _tokens_lock acquis, lecture tokens.json, ajout token, écriture
+T+0s:  Agent A → bank_consolidate("projet-alpha")
+       → Lock consolidation acquis
 
-T+0s: Admin B → admin_create_token("agent-2", "read")
-      → _tokens_lock bloqué, attente... (~50ms)
-
-T+0.05s: Admin A → lock relâché
-T+0.05s: Admin B → lock acquis, lecture tokens.json (contient agent-1), ajout agent-2, écriture
+T+5s:  Agent B → graph_push("projet-alpha")
+       → Pas de lock nécessaire (lecture seule de la bank + appel MCP SSE)
+       → Pousse la bank dans son état actuel (pas celle en cours de mise à jour)
 ```
-
-**Résultat** : Les deux tokens sont créés correctement, séquentiellement.
 
 ---
 
@@ -247,9 +202,10 @@ T+0.05s: Admin B → lock acquis, lecture tokens.json (contient agent-1), ajout 
 | `live_note` | 50-100ms (1 PUT S3) | Non | Aucun |
 | `live_read` (50 notes) | 200-500ms (1 LIST + N GETs) | Non | Aucun |
 | `bank_read_all` (6 fichiers) | 100-300ms (1 LIST + 6 GETs) | Non | Aucun |
-| `bank_consolidate` | 20-60s (LLM + I/O S3) | Oui (par espace) | Bloque les autres consolidations du même espace |
-| `admin_create_token` | 100-200ms (1 GET + 1 PUT S3) | Oui (tokens) | Sérialisation courte (~200ms) |
+| `bank_consolidate` | 20-60s (LLM + I/O S3) | Oui (par espace) | Bloque les autres conso du même espace |
+| `graph_push` (6 fichiers) | 60-180s (MCP SSE) | Non | Aucun |
+| `admin_create_token` | 100-200ms (1 GET + 1 PUT S3) | Oui (tokens) | Sérialisation courte |
 
 ---
 
-*Document généré le 20 février 2026 — Live Memory v0.1.0*
+*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*

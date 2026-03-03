@@ -26,7 +26,7 @@ def register(mcp: FastMCP) -> int:
         mcp: Instance FastMCP
 
     Returns:
-        Nombre d'outils enregistrés (4)
+        Nombre d'outils enregistrés (5)
     """
 
     @mcp.tool()

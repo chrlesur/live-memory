@@ -1,6 +1,6 @@
 # Services Cloud Temple — Live Memory
 
-> **Version** : 0.1.0 | **Date** : 2026-02-20 | **Auteur** : Cloud Temple
+> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
 
 ---
 
@@ -53,7 +53,7 @@ config_v4 = Config(
 client_v4 = boto3.client('s3', endpoint_url=endpoint, config=config_v4, ...)
 ```
 
-### Usage dans live-mem
+### Usage dans live-mem par outil MCP
 
 | Outil MCP          | Opérations S3             | Client                                 |
 | ------------------ | ------------------------- | -------------------------------------- |
@@ -61,7 +61,10 @@ client_v4 = boto3.client('s3', endpoint_url=endpoint, config=config_v4, ...)
 | `live_read`        | LIST + GET                | `client_v4` (LIST) + `client_v2` (GET) |
 | `bank_read_all`    | LIST + GET                | `client_v4` + `client_v2`              |
 | `bank_consolidate` | LIST + GET + PUT + DELETE | Les deux clients                       |
+| `graph_connect`    | GET + PUT (_meta.json)    | `client_v2`                            |
+| `graph_push`       | LIST + GET + PUT          | Les deux clients                       |
 | `backup_create`    | LIST + GET + PUT          | Les deux clients                       |
+| `admin_gc_notes`   | LIST + GET + DELETE       | Les deux clients                       |
 
 ---
 
@@ -105,7 +108,8 @@ response = await client.chat.completions.create(
     messages=[...],
     max_tokens=100000,
     temperature=0.3,
-    response_format={"type": "json_object"}
+    # Note: response_format={"type": "json_object"} non utilisé
+    # car pas supporté par tous les endpoints. JSON parsé manuellement.
 )
 ```
 
@@ -114,15 +118,6 @@ response = await client.chat.completions.create(
 | Modèle            | Params | Fenêtre     | Usage dans live-mem        |
 | ----------------- | ------ | ----------- | -------------------------- |
 | `qwen3-2507:235b` | 235B   | 100K tokens | Consolidation notes → bank |
-
-### Test rapide
-
-```bash
-curl -X POST https://api.ai.cloud-temple.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $LLMAAS_API_KEY" \
-  -d '{"model":"qwen3-2507:235b","messages":[{"role":"user","content":"Réponds OK"}],"max_tokens":10}'
-```
 
 ---
 
@@ -135,18 +130,21 @@ curl -X POST https://api.ai.cloud-temple.com/v1/chat/completions \
 | **Neo4j**      | ✅ Graphe de connaissances                  | ❌ Non utilisé                             |
 | **Qdrant**     | ✅ Base vectorielle RAG                     | ❌ Non utilisé                             |
 | **Embeddings** | ✅ bge-m3:567m                              | ❌ Non utilisé                             |
+| **Graph Bridge** | —                                          | ✅ Client MCP SSE vers graph-memory        |
 
 ---
 
 ## 4. Résumé des URLs
 
-| Service    | URL                                             | Auth         |
-| ---------- | ----------------------------------------------- | ------------ |
-| S3 API     | `https://your-endpoint.s3.fr1.cloud-temple.com` | AWS SigV2/V4 |
-| LLMaaS API | `https://api.ai.cloud-temple.com/v1`            | Bearer Token |
-| MCP Server | `http://localhost:8002` (interne)               | Bearer Token |
-| WAF        | `http://localhost:8080` (dev)                   | Transparent  |
+| Service         | URL                                             | Auth         |
+| --------------- | ----------------------------------------------- | ------------ |
+| S3 API          | `https://your-endpoint.s3.fr1.cloud-temple.com` | AWS SigV2/V4 |
+| LLMaaS API      | `https://api.ai.cloud-temple.com/v1`            | Bearer Token |
+| MCP Server      | `http://localhost:8002` (interne Docker)        | Bearer Token |
+| WAF             | `http://localhost:8080` (dev)                   | Transparent  |
+| Interface web   | `http://localhost:8080/live`                    | Bearer Token |
+| Graph Memory    | `https://graph-mem.mcp.cloud-temple.app/sse`   | Bearer Token |
 
 ---
 
-*Document généré le 20 février 2026 — Live Memory v0.1.0*
+*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*
