@@ -12,6 +12,7 @@ L'AuthMiddleware :
     4. Injecte les infos du token dans les contextvars
 """
 
+import json
 import sys
 import time
 import hashlib
@@ -61,7 +62,21 @@ class AuthMiddleware:
             # Valider le token (bootstrap key puis TokenService S3)
             token_info = await self._validate_token(token)
 
-        # Injecter dans le contextvar (même si None → les outils vérifieront)
+        # Bloquer si pas de token valide sur route non-publique
+        if token_info is None:
+            body = json.dumps({"error": "Authorization header required"}).encode()
+            await send({
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            })
+            await send({"type": "http.response.body", "body": body})
+            return
+
+        # Injecter dans le contextvar
         tok = current_token_info.set(token_info)
         try:
             await self.app(scope, receive, send)
