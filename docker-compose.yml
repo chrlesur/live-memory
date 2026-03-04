@@ -52,11 +52,11 @@ services:
     networks:
       - live-mem-network
     healthcheck:
-      # Vérification TCP : le port 8002 écoute-t-il ?
-      # FastMCP SSE n'expose pas de /health HTTP classique.
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost', 8002), timeout=2); s.close()"]
+      # Vérification HTTP : le serveur répond sur /health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=2)"]
       interval: 30s
       timeout: 5s
+      start_period: 10s
       retries: 3
 
   # ─────────────────────────────────────────────────────────────

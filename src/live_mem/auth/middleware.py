@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Middlewares ASGI : authentification, logging, normalisation Host.
+Middlewares ASGI : authentification, logging, fichiers statiques.
 
 Pile d'exécution (ordre) :
-    AuthMiddleware → LoggingMiddleware → HostNormalizerMiddleware → mcp.sse_app()
+    AuthMiddleware → LoggingMiddleware → StaticFilesMiddleware → mcp.streamable_http_app()
 
 L'AuthMiddleware :
     1. Extrait le Bearer token du header Authorization (ou query string)
@@ -75,7 +75,7 @@ class AuthMiddleware:
         if auth.startswith("Bearer "):
             return auth[7:]
 
-        # Fallback: query string ?token=xxx (pour SSE dans les navigateurs)
+        # Fallback: query string ?token=xxx (pour les navigateurs)
         qs = scope.get("query_string", b"").decode()
         for param in qs.split("&"):
             if param.startswith("token="):
@@ -167,7 +167,7 @@ class StaticFilesMiddleware:
     - GET /api/bank/{id}  → Liste des fichiers bank (JSON)
     - GET /api/bank/{id}/{filename} → Contenu d'un fichier bank (JSON)
 
-    Toutes les autres routes passent au handler suivant (MCP SSE).
+    Toutes les autres routes passent au handler suivant (MCP Streamable HTTP).
     """
 
     def __init__(self, app):
@@ -185,6 +185,11 @@ class StaticFilesMiddleware:
 
         path = scope.get("path", "")
         method = scope.get("method", "GET")
+
+        # Health check — réponse directe (pas de MCP, pas d'auth)
+        if path == "/health":
+            await self._handle_health(send)
+            return
 
         # Page de visualisation
         if path in ("/live", "/live/"):
@@ -230,8 +235,34 @@ class StaticFilesMiddleware:
                 await self._api_bank_file(send, parts[0], parts[1])
                 return
 
-        # Passer au handler suivant (MCP SSE)
+        # Passer au handler suivant (MCP Streamable HTTP)
         await self.app(scope, receive, send)
+
+    # ─────────────────── Health Check ───────────────────
+
+    async def _handle_health(self, send):
+        """Endpoint /health — réponse JSON simple pour les healthchecks."""
+        import json
+        from pathlib import Path
+
+        version_file = Path(__file__).parent.parent.parent.parent / "VERSION"
+        version = version_file.read_text().strip() if version_file.exists() else "dev"
+
+        body = json.dumps({
+            "status": "ok",
+            "service": "live-memory",
+            "version": version,
+            "transport": "streamable-http",
+        }).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                (b"content-type", b"application/json; charset=utf-8"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
 
     # ─────────────────── API Handlers ───────────────────
 
@@ -426,26 +457,3 @@ class StaticFilesMiddleware:
             "svg": "image/svg+xml",
             "ico": "image/x-icon",
         }.get(ext, "application/octet-stream")
-
-
-class HostNormalizerMiddleware:
-    """
-    Middleware ASGI qui normalise le header Host.
-
-    Utile quand un reverse proxy (nginx/Caddy) transmet le Host public
-    alors que le SDK MCP/Starlette n'accepte que localhost.
-    """
-
-    def __init__(self, app, target_host: str = "localhost"):
-        self.app = app
-        self.target_host = target_host.encode()
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] in ("http", "websocket"):
-            new_headers = []
-            for key, value in scope.get("headers", []):
-                if key == b"host":
-                    value = self.target_host
-                new_headers.append((key, value))
-            scope = dict(scope, headers=new_headers)
-        await self.app(scope, receive, send)

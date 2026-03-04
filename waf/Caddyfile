@@ -1,12 +1,12 @@
 # =============================================================================
-# Coraza WAF + Caddy — Configuration générique pour serveur MCP
+# Coraza WAF + Caddy — Configuration pour serveur MCP (Streamable HTTP)
 # =============================================================================
 #
 # Ce Caddyfile configure :
 # 1. Coraza WAF avec OWASP CRS (protection OWASP Top 10)
 # 2. Reverse proxy vers le service MCP (port 8002)
 # 3. Headers de sécurité (CSP, HSTS, X-Frame-Options, etc.)
-# 4. Gestion SSE (Server-Sent Events) pour le protocole MCP
+# 4. Gestion Streamable HTTP pour le protocole MCP (endpoint /mcp)
 # 5. Rate limiting par IP
 # 6. TLS automatique via Let's Encrypt (si domaine configuré)
 #
@@ -14,14 +14,17 @@
 #
 # ARCHITECTURE DES ROUTES :
 #
-#   /sse*        → Reverse Proxy DIRECT (streaming SSE, pas de WAF)
-#   /messages/*  → Reverse Proxy DIRECT (MCP protocol, pas de WAF)
+#   /mcp*        → Reverse Proxy DIRECT (MCP Streamable HTTP, pas de WAF)
 #   /api/*       → WAF Coraza + Reverse Proxy (timeout 5min pour outils longs)
 #   /*           → WAF Coraza + Reverse Proxy (statiques, health, etc.)
 #
-# Les routes SSE et messages sont authentifiées par token MCP côté serveur.
+# La route /mcp est authentifiée par token MCP côté serveur.
 # Le WAF Coraza bufférise les réponses pour les inspecter, ce qui est
-# incompatible avec le streaming SSE (connexions longues, flux continu).
+# incompatible avec le streaming SSE optionnel de Streamable HTTP.
+#
+# Migration SSE → Streamable HTTP (issue #1) :
+#   - /sse* + /messages/* fusionnés en /mcp* (endpoint unique)
+#   - Rate limiting recalibré (×3 : chaque appel = 3 requêtes HTTP)
 #
 # =============================================================================
 #
@@ -70,31 +73,26 @@
 	# =========================================================================
 	# Rate Limiting par IP (appliqué AVANT le WAF)
 	# =========================================================================
-	# Limites calibrées pour des agents IA :
-	# - SSE : 60 nouvelles connexions/min (tests et multi-agents)
-	# - Messages MCP : 300 appels d'outils/min (burst tests/consolidation)
+	# Limites calibrées pour des agents IA avec Streamable HTTP :
+	# - MCP : 200 requêtes/min (chaque appel d'outil = ~3 requêtes HTTP)
+	#   → supporte ~60 appels d'outils/min
 	# - API REST : 60 requêtes/min (interface web)
-	# - Global : 600 requêtes/min (toutes routes confondues)
+	# - Global : 500 requêtes/min (toutes routes confondues)
 	#
-	# Note : un agent optimal maintient 1 connexion SSE longue.
+	# Note : Streamable HTTP utilise 3 requêtes HTTP par appel d'outil :
+	#   1. POST /mcp — Initialize session
+	#   2. POST /mcp — Call tool
+	#   3. DELETE /mcp — Close session (optionnel)
 	# Ces limites sont volontairement permissives pour les tests
 	# et les scénarios multi-agents. Réduire en production si besoin.
 	# =========================================================================
 	rate_limit {
-		zone sse {
+		zone mcp {
 			match {
-				path /sse*
+				path /mcp*
 			}
 			key {remote_host}
-			events 60
-			window 1m
-		}
-		zone messages {
-			match {
-				path /messages/*
-			}
-			key {remote_host}
-			events 300
+			events 200
 			window 1m
 		}
 		zone api {
@@ -107,38 +105,23 @@
 		}
 		zone global {
 			key {remote_host}
-			events 600
+			events 500
 			window 1m
 		}
 	}
 
 	# =========================================================================
-	# Route 1 : SSE (Server-Sent Events) — SANS WAF
+	# Route 1 : MCP Streamable HTTP — SANS WAF
 	# =========================================================================
-	# Le protocole MCP utilise SSE pour la communication bidirectionnelle.
-	# Les connexions restent ouvertes pendant toute la session.
-	# Coraza bufférise les réponses → incompatible avec le streaming SSE.
+	# Le protocole MCP utilise Streamable HTTP (POST/GET/DELETE /mcp).
+	# Le serveur peut répondre en SSE downstream (streaming optionnel).
+	# Coraza bufférise les réponses → incompatible avec le streaming.
+	# Le body JSON peut contenir du base64 volumineux → faux positifs CRS.
+	# Certains outils peuvent prendre plusieurs minutes (consolidation LLM).
 	# =========================================================================
-	handle /sse* {
+	handle /mcp* {
 		reverse_proxy live-mem-service:8002 {
 			flush_interval -1
-			transport http {
-				read_timeout 0
-				write_timeout 0
-				response_header_timeout 0
-			}
-		}
-	}
-
-	# =========================================================================
-	# Route 2 : Messages MCP — SANS WAF
-	# =========================================================================
-	# POST /messages/{session_id} — appels d'outils MCP
-	# Le body JSON peut contenir du base64 volumineux → faux positifs CRS.
-	# Certains outils peuvent prendre plusieurs minutes.
-	# =========================================================================
-	handle /messages/* {
-		reverse_proxy live-mem-service:8002 {
 			transport http {
 				read_timeout 1800s
 				write_timeout 1800s
@@ -148,7 +131,7 @@
 	}
 
 	# =========================================================================
-	# Route 3 : Tout le reste — AVEC WAF Coraza
+	# Route 2 : Tout le reste — AVEC WAF Coraza
 	# =========================================================================
 	# Protégé par OWASP CRS contre : injections SQL/NoSQL, XSS, LFI/RFI,
 	# SSRF, path traversal, scanner/bot detection.

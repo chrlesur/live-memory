@@ -16,7 +16,7 @@ Le push utilise une synchronisation intelligente :
     - Les fichiers disparus de la bank sont nettoyés dans le graphe
     - Les métriques de push sont tracées dans _meta.json
 
-Voir core/graph_bridge.py pour la logique métier et le client MCP SSE.
+Voir core/graph_bridge.py pour la logique métier et le client MCP Streamable HTTP.
 """
 
 from mcp.server.fastmcp import FastMCP
@@ -51,7 +51,7 @@ def register(mcp: FastMCP) -> int:
 
         Args:
             space_id: Identifiant du space live-memory
-            url: URL de Graph Memory (ex: "http://localhost:8080/sse"
+            url: URL de Graph Memory (ex: "http://localhost:8080/mcp"
                  ou "http://localhost:8080")
             token: Bearer token pour Graph Memory
             memory_id: Identifiant de la mémoire cible dans Graph Memory

@@ -7,14 +7,21 @@ dans une instance Graph Memory (graphe de connaissances) pour la
 mémoire long terme.
 
 Flux de push :
-    1. Connexion MCP SSE à graph-memory
+    1. Connexion MCP Streamable HTTP à graph-memory
     2. Vérification/création de la mémoire cible
     3. Synchronisation : delete + re-ingest pour chaque fichier bank
     4. Nettoyage des fichiers obsolètes dans graph-memory
     5. Mise à jour des métadonnées du space
 
-Communication : protocole MCP via HTTP/SSE (httpx + httpx-sse).
+Communication : protocole MCP via Streamable HTTP (SDK officiel mcp>=1.8.0).
 Graph Memory est un service externe, on utilise son API MCP telle quelle.
+
+Migration SSE → Streamable HTTP (issue #1) :
+    - Remplace httpx + httpx-sse par mcp.client.streamable_http
+    - Endpoint : /sse → /mcp
+    - Plus de handshake manuel (le SDK gère initialize automatiquement)
+    - Chaque call_tool crée sa propre session (évite les conflits
+      de cancel scope quand appelé depuis le serveur MCP)
 
 Voir le README de graph-memory pour les outils disponibles :
     - memory_create, memory_list, memory_stats
@@ -29,8 +36,8 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 
-import httpx
-from httpx_sse import aconnect_sse
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
 from .storage import get_storage
 from .models import GraphMemoryConfig
@@ -44,14 +51,23 @@ logger = logging.getLogger("live_mem.graph_bridge")
 
 class GraphMemoryClient:
     """
-    Client MCP SSE minimaliste pour appeler les outils de Graph Memory.
+    Client MCP Streamable HTTP pour appeler les outils de Graph Memory.
 
-    Gère le handshake MCP complet (initialize + notifications/initialized)
-    puis permet d'appeler les outils par nom.
+    Chaque appel call_tool() crée sa propre connexion MCP complète
+    (transport + session + initialize + appel + fermeture).
 
-    Ce client est conçu pour être utilisé dans un context manager async :
-        async with GraphMemoryClient(url, token) as gm:
-            result = await gm.call_tool("memory_list", {})
+    C'est volontaire : le SDK MCP utilise des anyio TaskGroups qui ne
+    supportent pas d'être ouvertes dans une task et fermées dans une
+    autre (erreur "cancel scope in different task"). Comme le serveur
+    MCP exécute les outils dans ses propres tasks, un context manager
+    persistant casse. Chaque appel auto-contenu résout le problème.
+
+    Pour les opérations multi-appels (push), on utilise call_tools_batch()
+    qui exécute tout dans un seul scope asyncio.
+
+    Usage :
+        gm = GraphMemoryClient("http://localhost:8080", "token")
+        result = await gm.call_tool("memory_list", {})
     """
 
     def __init__(self, base_url: str, token: str, timeout: float = 120.0):
@@ -61,161 +77,32 @@ class GraphMemoryClient:
             token: Bearer token pour l'authentification
             timeout: Timeout par appel d'outil en secondes
         """
-        # Normaliser l'URL : retirer /sse si présent en fin
+        # Normaliser l'URL : retirer /sse ou /mcp si présent en fin
         self._base_url = base_url.rstrip("/")
-        if self._base_url.endswith("/sse"):
-            self._base_url = self._base_url[:-4]
+        for suffix in ("/sse", "/mcp"):
+            if self._base_url.endswith(suffix):
+                self._base_url = self._base_url[:-len(suffix)]
         self._token = token
         self._timeout = timeout
-        self._request_id = 0
-        self._client: Optional[httpx.AsyncClient] = None
-        self._session_url: Optional[str] = None
-        self._sse_task: Optional[asyncio.Task] = None
-        self._responses: asyncio.Queue = asyncio.Queue()
-        self._initialized = False
 
     @property
     def _headers(self) -> dict:
         """Headers HTTP avec authentification Bearer."""
-        h = {"Content-Type": "application/json"}
+        h = {}
         if self._token:
             h["Authorization"] = f"Bearer {self._token}"
         return h
 
-    async def __aenter__(self):
-        """Ouvre la connexion SSE et effectue le handshake MCP."""
-        await self._connect()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Ferme proprement la connexion."""
-        await self._disconnect()
-
-    async def _connect(self):
-        """
-        Établit la connexion SSE et effectue le handshake MCP.
-
-        Étapes :
-        1. Ouvre le client HTTP
-        2. Lance l'écoute SSE en tâche de fond
-        3. Attend l'endpoint de session
-        4. Envoie initialize + notifications/initialized
-        """
-        self._client = httpx.AsyncClient(
-            timeout=self._timeout,
-            headers=self._headers,
-        )
-        self._responses = asyncio.Queue()
-
-        # Lancer l'écoute SSE en background
-        self._sse_task = asyncio.create_task(self._listen_sse())
-
-        # Attendre l'endpoint (max 10s)
-        for _ in range(100):
-            if self._session_url:
-                break
-            await asyncio.sleep(0.1)
-
-        if not self._session_url:
-            await self._disconnect()
-            raise ConnectionError(
-                f"Timeout : pas d'endpoint SSE depuis {self._base_url}/sse. "
-                f"Graph Memory est-il démarré ?"
-            )
-
-        # Handshake : initialize
-        self._request_id += 1
-        init_req = {
-            "jsonrpc": "2.0",
-            "id": self._request_id,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "live-memory-bridge",
-                    "version": "0.2.0",
-                },
-            },
-        }
-        await self._client.post(
-            self._session_url, json=init_req, headers=self._headers
-        )
-
-        # Attendre la réponse initialize
-        try:
-            await asyncio.wait_for(self._responses.get(), timeout=10)
-        except asyncio.TimeoutError:
-            await self._disconnect()
-            raise ConnectionError("Timeout handshake initialize avec Graph Memory")
-
-        # Notification initialized
-        notif = {
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-        }
-        await self._client.post(
-            self._session_url, json=notif, headers=self._headers
-        )
-        await asyncio.sleep(0.1)
-
-        self._initialized = True
-        logger.info("Connecté à Graph Memory : %s", self._base_url)
-
-    async def _disconnect(self):
-        """Ferme proprement la connexion SSE et le client HTTP."""
-        if self._sse_task and not self._sse_task.done():
-            self._sse_task.cancel()
-            try:
-                await self._sse_task
-            except asyncio.CancelledError:
-                pass
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-        self._initialized = False
-        self._session_url = None
-
-    async def _listen_sse(self):
-        """Écoute les événements SSE en arrière-plan."""
-        assert self._client is not None
-        try:
-            async with aconnect_sse(
-                self._client, "GET", f"{self._base_url}/sse",
-                headers=self._headers,
-            ) as event_source:
-                async for sse in event_source.aiter_sse():
-                    if sse.event == "endpoint":
-                        endpoint = sse.data
-                        if endpoint.startswith("http"):
-                            self._session_url = endpoint
-                        else:
-                            self._session_url = f"{self._base_url}{endpoint}"
-                        continue
-
-                    if sse.event == "message":
-                        try:
-                            data = json.loads(sse.data)
-                        except json.JSONDecodeError:
-                            continue
-
-                        # Ignorer les notifications de progression
-                        if data.get("method") == "notifications/message":
-                            continue
-
-                        # Réponse (result ou error)
-                        if "result" in data or "error" in data:
-                            await self._responses.put(data)
-
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.warning("SSE listener fermé : %s", e)
-            await self._responses.put({"error": {"message": str(e)}})
+    @property
+    def _mcp_url(self) -> str:
+        return f"{self._base_url}/mcp"
 
     async def call_tool(self, tool_name: str, arguments: dict) -> dict:
         """
-        Appelle un outil MCP sur Graph Memory.
+        Appelle un outil MCP sur Graph Memory (session auto-contenue).
+
+        Crée une connexion complète pour chaque appel :
+        transport → session → initialize → call_tool → fermeture.
 
         Args:
             tool_name: Nom de l'outil (ex: "memory_create")
@@ -223,60 +110,108 @@ class GraphMemoryClient:
 
         Returns:
             Résultat de l'outil (dict)
-
-        Raises:
-            ConnectionError: Si pas connecté
-            TimeoutError: Si timeout dépassé
         """
-        if not self._initialized or not self._client or not self._session_url:
-            raise ConnectionError("Client non connecté à Graph Memory")
-
-        self._request_id += 1
-        request = {
-            "jsonrpc": "2.0",
-            "id": self._request_id,
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": arguments,
-            },
-        }
-
-        await self._client.post(
-            self._session_url, json=request, headers=self._headers
-        )
-
-        # Attendre la réponse
         try:
-            response = await asyncio.wait_for(
-                self._responses.get(), timeout=self._timeout
-            )
+            async with streamablehttp_client(
+                self._mcp_url,
+                headers=self._headers,
+                timeout=self._timeout,
+                sse_read_timeout=self._timeout,
+            ) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+
+                    result = await asyncio.wait_for(
+                        session.call_tool(tool_name, arguments),
+                        timeout=self._timeout,
+                    )
+
+                    # Extraire le résultat (SDK MCP encapsule dans content[0].text)
+                    if result.content and len(result.content) > 0:
+                        text = result.content[0].text
+                        try:
+                            return json.loads(text)
+                        except (json.JSONDecodeError, TypeError):
+                            return {"status": "ok", "raw": text}
+
+                    return {"status": "ok", "raw": ""}
+
         except asyncio.TimeoutError:
             raise TimeoutError(
                 f"Timeout après {self._timeout}s pour '{tool_name}' "
                 f"sur Graph Memory"
             )
+        except Exception as e:
+            raise ConnectionError(
+                f"Erreur MCP '{tool_name}' sur Graph Memory : {e}"
+            )
 
-        # Erreur JSON-RPC
-        if "error" in response:
-            err = response["error"]
-            return {
-                "status": "error",
-                "message": err.get("message", str(err)),
-            }
+    async def call_tools_batch(self, calls: list[tuple[str, dict]]) -> list[dict]:
+        """
+        Exécute plusieurs appels d'outils dans une seule session MCP.
 
-        # Extraire le résultat (le SDK MCP encapsule dans content[0].text)
-        result = response.get("result", {})
-        if isinstance(result, dict) and "content" in result:
-            content = result["content"]
-            if isinstance(content, list) and len(content) > 0:
-                text = content[0].get("text", "")
-                try:
-                    return json.loads(text)
-                except (json.JSONDecodeError, TypeError):
-                    return {"status": "ok", "raw": text}
+        Utile pour les opérations multi-appels (push) : une seule
+        connexion pour N appels, tout dans le même scope asyncio.
 
-        return result
+        Args:
+            calls: Liste de (tool_name, arguments) tuples
+
+        Returns:
+            Liste de résultats (même ordre que les appels)
+        """
+        results = []
+        try:
+            async with streamablehttp_client(
+                self._mcp_url,
+                headers=self._headers,
+                timeout=self._timeout,
+                sse_read_timeout=self._timeout,
+            ) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+
+                    for tool_name, arguments in calls:
+                        try:
+                            result = await asyncio.wait_for(
+                                session.call_tool(tool_name, arguments),
+                                timeout=self._timeout,
+                            )
+                            if result.content and len(result.content) > 0:
+                                text = result.content[0].text
+                                try:
+                                    results.append(json.loads(text))
+                                except (json.JSONDecodeError, TypeError):
+                                    results.append({"status": "ok", "raw": text})
+                            else:
+                                results.append({"status": "ok", "raw": ""})
+                        except asyncio.TimeoutError:
+                            results.append({
+                                "status": "error",
+                                "message": f"Timeout {self._timeout}s pour '{tool_name}'",
+                            })
+                        except Exception as e:
+                            results.append({
+                                "status": "error",
+                                "message": f"Erreur '{tool_name}': {e}",
+                            })
+
+        except Exception as e:
+            # Si la connexion elle-même échoue, remplir tous les résultats manquants
+            while len(results) < len(calls):
+                results.append({
+                    "status": "error",
+                    "message": f"Connexion Graph Memory échouée : {e}",
+                })
+
+        return results
+
+    # Context manager pour compatibilité (délègue à call_tool par appel)
+    async def __aenter__(self):
+        logger.info("GraphMemoryClient connecté (mode appels auto-contenus) : %s", self._base_url)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass  # Rien à fermer — chaque call_tool gère sa propre session
 
 
 # ─────────────────────────────────────────────────────────────
@@ -314,7 +249,7 @@ class GraphBridgeService:
 
         Args:
             space_id: Identifiant du space live-memory
-            url: URL SSE de graph-memory (ex: "http://localhost:8080/sse")
+            url: URL de graph-memory (ex: "http://localhost:8080" ou "/mcp")
             token: Bearer token pour graph-memory
             memory_id: Memory cible dans graph-memory
             ontology: Ontologie à utiliser (défaut: "general")
@@ -334,54 +269,55 @@ class GraphBridgeService:
 
         # Tester la connexion à graph-memory
         try:
-            async with GraphMemoryClient(url, token) as gm:
-                # Vérifier la santé
-                health = await gm.call_tool("system_health", {})
-                if health.get("status") == "error":
+            gm = GraphMemoryClient(url, token)
+
+            # Vérifier la santé
+            health = await gm.call_tool("system_health", {})
+            if health.get("status") == "error":
+                return {
+                    "status": "error",
+                    "message": (
+                        f"Graph Memory non disponible : "
+                        f"{health.get('message', 'erreur inconnue')}"
+                    ),
+                }
+
+            # Vérifier si la mémoire existe déjà
+            memories = await gm.call_tool("memory_list", {})
+            existing_ids = []
+            if memories.get("status") == "ok":
+                existing_ids = [
+                    m.get("memory_id", m.get("id", ""))
+                    for m in memories.get("memories", [])
+                ]
+
+            memory_created = False
+            if memory_id not in existing_ids:
+                # Créer la mémoire dans graph-memory
+                create_result = await gm.call_tool("memory_create", {
+                    "memory_id": memory_id,
+                    "name": f"Live Memory — {space_id}",
+                    "description": (
+                        f"Memory Bank synchronisée depuis live-memory "
+                        f"space '{space_id}'"
+                    ),
+                    "ontology": ontology,
+                })
+
+                if create_result.get("status") == "error":
                     return {
                         "status": "error",
                         "message": (
-                            f"Graph Memory non disponible : "
-                            f"{health.get('message', 'erreur inconnue')}"
+                            f"Impossible de créer la mémoire '{memory_id}' "
+                            f"dans Graph Memory : "
+                            f"{create_result.get('message', '')}"
                         ),
                     }
-
-                # Vérifier si la mémoire existe déjà
-                memories = await gm.call_tool("memory_list", {})
-                existing_ids = []
-                if memories.get("status") == "ok":
-                    existing_ids = [
-                        m.get("memory_id", m.get("id", ""))
-                        for m in memories.get("memories", [])
-                    ]
-
-                memory_created = False
-                if memory_id not in existing_ids:
-                    # Créer la mémoire dans graph-memory
-                    create_result = await gm.call_tool("memory_create", {
-                        "memory_id": memory_id,
-                        "name": f"Live Memory — {space_id}",
-                        "description": (
-                            f"Memory Bank synchronisée depuis live-memory "
-                            f"space '{space_id}'"
-                        ),
-                        "ontology": ontology,
-                    })
-
-                    if create_result.get("status") == "error":
-                        return {
-                            "status": "error",
-                            "message": (
-                                f"Impossible de créer la mémoire '{memory_id}' "
-                                f"dans Graph Memory : "
-                                f"{create_result.get('message', '')}"
-                            ),
-                        }
-                    memory_created = True
-                    logger.info(
-                        "Mémoire '%s' créée dans Graph Memory (ontologie: %s)",
-                        memory_id, ontology,
-                    )
+                memory_created = True
+                logger.info(
+                    "Mémoire '%s' créée dans Graph Memory (ontologie: %s)",
+                    memory_id, ontology,
+                )
 
         except ConnectionError as e:
             return {
@@ -437,6 +373,9 @@ class GraphBridgeService:
            plus dans la bank (nettoyage)
         4. Met à jour _meta.json avec les métriques de push
 
+        Utilise call_tools_batch() pour exécuter tous les appels
+        dans une seule session MCP (performance).
+
         Args:
             space_id: Identifiant du space live-memory
 
@@ -485,108 +424,85 @@ class GraphBridgeService:
             }
 
         # Connexion à graph-memory
+        gm = GraphMemoryClient(config.url, config.token, timeout=180.0)
+
         try:
-            async with GraphMemoryClient(
-                config.url, config.token, timeout=180.0
-            ) as gm:
-                # 1. Lister les documents existants dans graph-memory
-                doc_list = await gm.call_tool("document_list", {
+            # 1. Lister les documents existants dans graph-memory
+            doc_list = await gm.call_tool("document_list", {
+                "memory_id": memory_id,
+            })
+            existing_docs = set()
+            if doc_list.get("status") == "ok":
+                for doc in doc_list.get("documents", []):
+                    existing_docs.add(doc.get("filename", ""))
+
+            logger.info(
+                "Push '%s' → '%s' : %d fichiers bank, %d docs existants",
+                space_id, memory_id, len(bank_files), len(existing_docs),
+            )
+
+            # 2. Construire le batch d'appels (delete + ingest pour chaque fichier)
+            calls = []
+            call_metadata = []  # Pour tracker quel appel fait quoi
+
+            for filename, content in bank_files.items():
+                # Si le document existe → supprimer d'abord
+                if filename in existing_docs:
+                    calls.append(("document_delete", {
+                        "memory_id": memory_id,
+                        "filename": filename,
+                    }))
+                    call_metadata.append(("delete", filename))
+
+                # Encoder en base64 et ingérer
+                content_bytes = content.encode("utf-8")
+                content_b64 = base64.b64encode(content_bytes).decode("ascii")
+                calls.append(("memory_ingest", {
                     "memory_id": memory_id,
-                })
-                existing_docs = set()
-                if doc_list.get("status") == "ok":
-                    for doc in doc_list.get("documents", []):
-                        existing_docs.add(doc.get("filename", ""))
+                    "content_base64": content_b64,
+                    "filename": filename,
+                }))
+                call_metadata.append(("ingest", filename))
 
-                logger.info(
-                    "Push '%s' → '%s' : %d fichiers bank, %d docs existants",
-                    space_id, memory_id, len(bank_files), len(existing_docs),
-                )
+            # 3. Nettoyage des orphelins
+            orphan_docs = existing_docs - set(bank_files.keys())
+            for orphan in orphan_docs:
+                calls.append(("document_delete", {
+                    "memory_id": memory_id,
+                    "filename": orphan,
+                }))
+                call_metadata.append(("clean", orphan))
 
-                pushed = 0
-                deleted_before_reingest = 0
-                errors = 0
-                error_details = []
+            # 4. Exécuter tout le batch dans une seule session
+            results = await gm.call_tools_batch(calls)
 
-                # 2. Pour chaque fichier bank : delete si existe + ingest
-                for filename, content in bank_files.items():
-                    try:
-                        # Si le document existe → supprimer d'abord
-                        if filename in existing_docs:
-                            del_result = await gm.call_tool(
-                                "document_delete", {
-                                    "memory_id": memory_id,
-                                    "filename": filename,
-                                }
-                            )
-                            if del_result.get("status") == "error":
-                                logger.warning(
-                                    "Échec suppression '%s' : %s",
-                                    filename, del_result.get("message", ""),
-                                )
-                            else:
-                                deleted_before_reingest += 1
-                                logger.info("Supprimé '%s' (pré-réingestion)", filename)
+            # 5. Analyser les résultats
+            pushed = 0
+            deleted_before_reingest = 0
+            cleaned = 0
+            errors = 0
+            error_details = []
 
-                        # Encoder le contenu en base64 pour memory_ingest
-                        content_bytes = content.encode("utf-8")
-                        content_b64 = base64.b64encode(content_bytes).decode("ascii")
-
-                        # Ingérer dans graph-memory
-                        ingest_result = await gm.call_tool(
-                            "memory_ingest", {
-                                "memory_id": memory_id,
-                                "content_base64": content_b64,
-                                "filename": filename,
-                            }
-                        )
-
-                        if ingest_result.get("status") == "error":
-                            errors += 1
-                            error_details.append({
-                                "filename": filename,
-                                "error": ingest_result.get("message", ""),
-                            })
-                            logger.error(
-                                "Échec ingestion '%s' : %s",
-                                filename, ingest_result.get("message", ""),
-                            )
-                        else:
-                            pushed += 1
-                            logger.info(
-                                "Ingéré '%s' (%d octets)",
-                                filename, len(content_bytes),
-                            )
-
-                    except Exception as e:
+            for (action, filename), result in zip(call_metadata, results):
+                if result.get("status") == "error":
+                    if action == "ingest":
                         errors += 1
                         error_details.append({
                             "filename": filename,
-                            "error": str(e),
+                            "error": result.get("message", ""),
                         })
-                        logger.error("Erreur push '%s' : %s", filename, e)
-
-                # 3. Nettoyage : supprimer les docs dans graph-memory
-                #    qui ne sont plus dans la bank
-                cleaned = 0
-                orphan_docs = existing_docs - set(bank_files.keys())
-                for orphan in orphan_docs:
-                    try:
-                        del_result = await gm.call_tool(
-                            "document_delete", {
-                                "memory_id": memory_id,
-                                "filename": orphan,
-                            }
-                        )
-                        if del_result.get("status") != "error":
-                            cleaned += 1
-                            logger.info(
-                                "Nettoyé document orphelin '%s'", orphan
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            "Échec nettoyage orphelin '%s' : %s", orphan, e
-                        )
+                        logger.error("Échec %s '%s' : %s", action, filename, result.get("message", ""))
+                    else:
+                        logger.warning("Échec %s '%s' : %s", action, filename, result.get("message", ""))
+                else:
+                    if action == "ingest":
+                        pushed += 1
+                        logger.info("Ingéré '%s'", filename)
+                    elif action == "delete":
+                        deleted_before_reingest += 1
+                    elif action == "clean":
+                        cleaned += 1
+                        logger.info("Nettoyé orphelin '%s'", filename)
 
         except ConnectionError as e:
             return {
@@ -601,7 +517,7 @@ class GraphBridgeService:
 
         duration = round(time.monotonic() - t0, 1)
 
-        # 4. Mettre à jour _meta.json avec les métriques
+        # 6. Mettre à jour _meta.json avec les métriques
         now = datetime.now(timezone.utc).isoformat()
         gm_config["last_push"] = now
         gm_config["push_count"] = gm_config.get("push_count", 0) + 1
@@ -674,36 +590,36 @@ class GraphBridgeService:
 
         # Tester la connexion et récupérer les stats + documents
         try:
-            async with GraphMemoryClient(config.url, config.token) as gm:
-                # 1. Statistiques de la mémoire
-                stats = await gm.call_tool("memory_stats", {
-                    "memory_id": config.memory_id,
-                })
+            gm = GraphMemoryClient(config.url, config.token)
 
-                graph_stats = None
-                top_entities = []
-                if stats.get("status") == "ok":
-                    graph_stats = {
-                        "document_count": stats.get("document_count", 0),
-                        "entity_count": stats.get("entity_count", 0),
-                        "relation_count": stats.get("relation_count", 0),
-                    }
-                    top_entities = stats.get("top_entities", [])
+            # Batch : stats + document_list
+            results = await gm.call_tools_batch([
+                ("memory_stats", {"memory_id": config.memory_id}),
+                ("document_list", {"memory_id": config.memory_id}),
+            ])
 
-                # 2. Liste des documents ingérés
-                doc_list = await gm.call_tool("document_list", {
-                    "memory_id": config.memory_id,
-                })
+            stats = results[0]
+            doc_list = results[1]
 
-                graph_documents = []
-                if doc_list.get("status") == "ok":
-                    for doc in doc_list.get("documents", []):
-                        graph_documents.append({
-                            "filename": doc.get("filename", "?"),
-                            "entity_count": doc.get("entity_count", 0),
-                            "ingested_at": doc.get("ingested_at", ""),
-                            "size": doc.get("size_bytes", doc.get("size", 0)),
-                        })
+            graph_stats = None
+            top_entities = []
+            if stats.get("status") == "ok":
+                graph_stats = {
+                    "document_count": stats.get("document_count", 0),
+                    "entity_count": stats.get("entity_count", 0),
+                    "relation_count": stats.get("relation_count", 0),
+                }
+                top_entities = stats.get("top_entities", [])
+
+            graph_documents = []
+            if doc_list.get("status") == "ok":
+                for doc in doc_list.get("documents", []):
+                    graph_documents.append({
+                        "filename": doc.get("filename", "?"),
+                        "entity_count": doc.get("entity_count", 0),
+                        "ingested_at": doc.get("ingested_at", ""),
+                        "size": doc.get("size_bytes", doc.get("size", 0)),
+                    })
 
         except ConnectionError as e:
             return {

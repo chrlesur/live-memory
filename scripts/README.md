@@ -7,7 +7,7 @@
 ## Prérequis
 
 ```bash
-pip install click rich prompt-toolkit httpx httpx-sse
+pip install click rich prompt-toolkit mcp[cli]>=1.8.0
 ```
 
 Variables d'environnement :
@@ -209,6 +209,22 @@ Tous les tests fonctionnent via Docker Compose + WAF. Assurez-vous que le serveu
 docker compose up -d
 ```
 
+### 0. ⭐ Test de qualité officiel — `test_qualite.py`
+
+```bash
+# Test complet (28 tests, ~35s sans graph, ~120s avec graph)
+python scripts/test_qualite.py
+
+# Avec Graph Memory local (4 tests supplémentaires)
+python scripts/test_qualite.py --graph-url http://host.docker.internal:8080 --graph-token TOKEN
+
+# Verbose + pas-à-pas
+python scripts/test_qualite.py --step -v
+```
+
+**Le test de référence.** Valide TOUTES les fonctionnalités : system, tokens, spaces, notes live, consolidation LLM, bank, backups, GC, et graph bridge (optionnel).
+**Résultat attendu** : 28 PASS, 0 FAIL.
+
 Options communes à tous les tests :
 - `--step` — Mode pas-à-pas (pause entre chaque étape, Entrée pour avancer)
 - `--no-cleanup` — Conserver les données après le test (pour inspection)
@@ -294,6 +310,7 @@ python scripts/test_graph_bridge.py --step --no-cleanup
 ```
 scripts/
 ├── mcp_cli.py              # Point d'entrée CLI Click
+├── test_qualite.py         # ⭐ Test de qualité officiel (28 tests)
 ├── test_recette.py         # 🧪 Recette E2E (1 agent, 12 notes)
 ├── test_multi_agents.py    # 🧪 Multi-agents (3 agents collaborent)
 ├── test_gc.py              # 🧪 Test du Garbage Collector
@@ -301,7 +318,7 @@ scripts/
 ├── README.md               # ← Vous êtes ici
 └── cli/
     ├── __init__.py         # Config (BASE_URL, TOKEN)
-    ├── client.py           # MCPClient HTTP/SSE + handshake MCP
+    ├── client.py           # MCPClient Streamable HTTP (SDK MCP)
     ├── commands.py         # Commandes Click
     ├── display.py          # Affichage Rich (tables, panels)
     └── shell.py            # Shell interactif prompt_toolkit

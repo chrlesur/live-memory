@@ -5,6 +5,29 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.5.0] — 2026-03-04
+
+### Changé — Migration SSE → Streamable HTTP (issue #1)
+- **Transport MCP** : `sse_app()` → `streamable_http_app()` — endpoint unique `/mcp` (remplace `/sse` + `/messages`)
+- **SDK MCP** : `mcp>=1.2.0` → `mcp>=1.8.0` (v1.26.0)
+- **Client CLI** (`scripts/cli/client.py`) : réécrit avec le SDK MCP officiel (`streamablehttp_client`), suppression du handshake SSE manuel (~150 lignes en moins)
+- **Graph Bridge** (`core/graph_bridge.py`) : `GraphMemoryClient` réécrit avec sessions MCP auto-contenues (corrige l'erreur "cancel scope in different task" avec anyio). Ajout de `call_tools_batch()` pour les opérations multi-appels (push).
+- **WAF Caddyfile** : routes `/sse*` + `/messages/*` fusionnées en `/mcp*`, rate limiting recalibré (200 req/min — chaque appel MCP = ~3 HTTP requests)
+- **`HostNormalizerMiddleware`** supprimé (plus nécessaire avec Streamable HTTP)
+- Pile middlewares : `Auth → Logging → StaticFiles → MCP Streamable HTTP`
+
+### Ajouté
+- **Endpoint `/health`** — Réponse JSON directe (`{"status": "ok", "transport": "streamable-http"}`) pour les healthchecks Docker/WAF. Nécessaire car `streamable_http_app()` ne sert que `/mcp`.
+- **`HEALTHCHECK` Docker** — `python urllib.request` sur `/health` (remplace le TCP socket)
+- **`test_qualite.py`** — Test de qualité officiel (28 tests couvrant les 7 catégories d'outils : system, admin, space, live, bank, backup, gc, graph). Résultat attendu : 28 PASS, 0 FAIL.
+
+### Supprimé
+- `HostNormalizerMiddleware` (classe supprimée de `middleware.py`)
+- Dépendance implicite à `httpx-sse` côté client (le SDK MCP gère le transport)
+- Endpoints `/sse` et `/messages/*` (remplacés par `/mcp`)
+
+---
+
 ## [0.4.0] — 2026-03-03
 
 ### Ajouté

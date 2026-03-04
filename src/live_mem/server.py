@@ -83,26 +83,27 @@ def create_app():
 
     Pile d'exécution (premier exécuté → dernier) :
         AuthMiddleware → LoggingMiddleware → StaticFilesMiddleware
-        → HostNormalizerMiddleware → mcp.sse_app()
+        → mcp.streamable_http_app()
 
     L'AuthMiddleware extrait le Bearer token et l'injecte dans les contextvars.
     Le LoggingMiddleware trace les requêtes HTTP sur stderr.
     Le StaticFilesMiddleware sert /live, /static/*, /api/* (interface web).
-    Le HostNormalizerMiddleware remplace le header Host pour le SDK MCP.
+
+    Note: HostNormalizerMiddleware supprimé — Streamable HTTP n'a pas
+    le problème de validation Host que SSE avait avec Starlette.
     """
     from .auth.middleware import (
         AuthMiddleware,
         LoggingMiddleware,
         StaticFilesMiddleware,
-        HostNormalizerMiddleware,
     )
 
-    # L'app de base est le SSE handler du SDK MCP
-    app = mcp.sse_app()
+    # L'app de base est le Streamable HTTP handler du SDK MCP
+    # Endpoint unique : POST/GET /mcp (remplace /sse + /messages)
+    app = mcp.streamable_http_app()
 
     # Empiler les middlewares (dernier ajouté = premier exécuté)
-    # Flux requête : Auth → Logging → StaticFiles → HostNormalizer → MCP SSE
-    app = HostNormalizerMiddleware(app)
+    # Flux requête : Auth → Logging → StaticFiles → MCP Streamable HTTP
     app = StaticFilesMiddleware(app)
     app = LoggingMiddleware(app)
     app = AuthMiddleware(app)
@@ -158,7 +159,7 @@ def main():
     host = settings.mcp_server_host
     port = settings.mcp_server_port
     content_lines.append(f"  🌐 http://{host}:{port}")
-    content_lines.append(f"  📡 http://{host}:{port}/sse")
+    content_lines.append(f"  📡 http://{host}:{port}/mcp")
     content_lines.append(f"  🖥️  http://{host}:{port}/live")
 
     # Calculer la largeur du cadre (largeur max + marges)

@@ -34,5 +34,10 @@ USER mcp
 
 EXPOSE 8002
 
+# Healthcheck : vérifier que le serveur répond sur /health
+# (pas de curl dans slim → utiliser python)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=2)" || exit 1
+
 # Point d'entrée : le serveur MCP
 CMD ["python", "-m", "live_mem"]

@@ -43,8 +43,8 @@ live-memory   = Mémoire de TRAVAIL (notes live → LLM → Memory Bank structur
 
 | Mode         | Description                                                       | Analogie                   |
 | ------------ | ----------------------------------------------------------------- | -------------------------- |
-| **🔴 Live** | Notes temps réel (observations, décisions, todos...) append-only   | Tableau blanc partagé      |
-| **📘 Bank** | Consolidation LLM en fichiers Markdown structurés selon des rules  | Cahier de projet structuré |
+| **🔴 Live** | Notes temps réel (observations, décisions, todos...) append-only  | Tableau blanc partagé      |
+| **📘 Bank** | Consolidation LLM en fichiers Markdown structurés selon des rules | Cahier de projet structuré |
 
 ### Pourquoi Live Memory ?
 
@@ -67,16 +67,16 @@ Live Memory + Graph Memory implémente directement cette architecture :
 │                  Environnement partagé E                    │
 │                                                             │
 │  ┌──────────────────┐   LLM    ┌─────────────────────┐      │
-│  │  🔴 Live         │ ──────► │  📘 Bank             │      │
+│  │   Live           │ ──────►  │   Bank              │      │
 │  │  Notes temps réel│ consolide│  Mémoire de travail │      │
-│  │  (append-only)   │         │  structurée          │      │
-│  └──────────────────┘         └──────────┬───────────┘      │
+│  │  (append-only)   │          │  structurée         │      │
+│  └──────────────────┘          └──────────┬──────────┘      │
 │                                          │                  │
 │                                     graph_push              │
-│                                     (MCP SSE)               │
+│                                     (MCP Streamable HTTP)   │
 │                                          │                  │
 │                               ┌──────────▼───────────┐      │
-│                               │  🌐 Graph Memory     │      │
+│                               │     Graph Memory     │      │
 │                               │  Knowledge Graph     │      │
 │                               │  (entités, relations,│      │
 │                               │   embeddings, RAG)   │      │
@@ -84,10 +84,10 @@ Live Memory + Graph Memory implémente directement cette architecture :
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| Niveau | Service | Durée | Contenu | Usage |
-|--------|---------|-------|---------|-------|
-| **Mémoire de travail** | Live Memory | Session / projet | Notes brutes + bank consolidée Markdown | Contexte opérationnel, coordination quotidienne |
-| **Mémoire long terme** | Graph Memory | Permanent | Entités + relations + embeddings vectoriels | Base de connaissances interrogeable en langage naturel |
+| Niveau                 | Service      | Durée            | Contenu                                     | Usage                                                  |
+| ---------------------- | ------------ | ---------------- | ------------------------------------------- | ------------------------------------------------------ |
+| **Mémoire de travail** | Live Memory  | Session / projet | Notes brutes + bank consolidée Markdown     | Contexte opérationnel, coordination quotidienne        |
+| **Mémoire long terme** | Graph Memory | Permanent        | Entités + relations + embeddings vectoriels | Base de connaissances interrogeable en langage naturel |
 
 **Le Graph Bridge** (`graph_push`) est le canal de collaboration entre ces deux niveaux. Conformément au pattern **late-stage collaboration** décrit dans la littérature (partage des outputs consolidés comme inputs d'un autre système), il transforme la documentation de travail (Markdown) en connaissances structurées (graphe d'entités/relations).
 
@@ -111,7 +111,7 @@ Concrètement, les agents peuvent :
           │                   │                │
           └────────┬──────────┘                │
                    │                           │
-                   ▼  MCP Protocol (HTTP/SSE)  ▼
+                   ▼  MCP Protocol (Streamable HTTP)  ▼
           ┌────────────────────────────────────────┐
           │   Caddy WAF (Coraza CRS)               │
           │   Rate Limiting • TLS • OWASP CRS      │
@@ -124,7 +124,7 @@ Concrètement, les agents peuvent :
           └──────┬──────────┬──────┬───────┘
                  │          │      │
           ┌──────┴──┐  ┌────┴───┐  │
-          │   S3    │  │ LLMaaS │  │  MCP SSE
+          │   S3    │  │ LLMaaS │  │  MCP Streamable HTTP
           │Dell ECS │  │ CT API │  │  (optionnel)
           └─────────┘  └────────┘  │
                        ┌───────────┴────────────┐
@@ -178,7 +178,7 @@ docker compose up -d
 docker compose ps
 
 # Vérifier la santé
-curl -s http://localhost:8080/sse | head -1
+curl -s http://localhost:8080/health
 ```
 
 ### 3b. Démarrage local (développement)
@@ -194,7 +194,7 @@ cd src && python -m live_mem
 ### 4. Installer la CLI (optionnel)
 
 ```bash
-pip install click rich prompt-toolkit httpx httpx-sse
+pip install click rich prompt-toolkit mcp[cli]>=1.8.0
 ```
 
 ### 5. Vérifier l'installation
@@ -259,7 +259,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 Outils MCP
 
-30 outils exposés via le protocole MCP (HTTP/SSE), répartis en 7 catégories.
+30 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
 
 ### System (2 outils)
 
@@ -352,11 +352,11 @@ http://localhost:8080/live
 
 ### Fonctionnalités
 
-| Zone | Contenu |
-|------|---------|
-| **📊 Dashboard** (gauche) | Infos espace, consolidation (date + compteurs), stats live/bank, agents colorés, catégories avec %, rules Markdown, Graph Memory |
-| **🔴 Live Timeline** (haut-droite) | Notes live groupées par date (Aujourd'hui/Hier/date), cards avec agent + catégorie + Markdown |
-| **📘 Bank Viewer** (bas-droite) | Onglets de fichiers consolidés, rendu Markdown avec marked.js |
+| Zone                                | Contenu                                                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **📊 Dashboard** (gauche)          | Infos espace, consolidation (date + compteurs), stats live/bank, agents colorés, catégories avec %, rules Markdown, Graph Memory |
+| **🔴 Live Timeline** (haut-droite) | Notes live groupées par date (Aujourd'hui/Hier/date), cards avec agent + catégorie + Markdown                                    |
+| **📘 Bank Viewer** (bas-droite)    | Onglets de fichiers consolidés, rendu Markdown avec marked.js                                                                    |
 
 ### Layout
 
@@ -378,13 +378,13 @@ http://localhost:8080/live
 
 ### API REST (5 endpoints)
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/spaces` | Liste des espaces |
-| `GET /api/space/{id}` | Info complète (meta + rules + stats + graph-memory) |
-| `GET /api/live/{id}` | Notes live (filtres: `?agent=`, `?category=`, `?limit=`) |
-| `GET /api/bank/{id}` | Liste des fichiers bank |
-| `GET /api/bank/{id}/{filename}` | Contenu d'un fichier bank |
+| Endpoint                        | Description                                              |
+| ------------------------------- | -------------------------------------------------------- |
+| `GET /api/spaces`               | Liste des espaces                                        |
+| `GET /api/space/{id}`           | Info complète (meta + rules + stats + graph-memory)      |
+| `GET /api/live/{id}`            | Notes live (filtres: `?agent=`, `?category=`, `?limit=`) |
+| `GET /api/bank/{id}`            | Liste des fichiers bank                                  |
+| `GET /api/bank/{id}/{filename}` | Contenu d'un fichier bank                                |
 
 Les endpoints `/api/*` nécessitent un Bearer Token. La page `/live` et les fichiers `/static/*` sont publics.
 
@@ -400,7 +400,7 @@ Dans les settings MCP de Cline :
 {
   "mcpServers": {
     "live-memory": {
-      "url": "http://localhost:8080/sse",
+      "url": "http://localhost:8080/mcp",
       "headers": {
         "Authorization": "Bearer VOTRE_TOKEN"
       }
@@ -417,7 +417,7 @@ Dans `claude_desktop_config.json` :
 {
   "mcpServers": {
     "live-memory": {
-      "url": "http://localhost:8080/sse",
+      "url": "http://localhost:8080/mcp",
       "headers": {
         "Authorization": "Bearer VOTRE_TOKEN"
       }
@@ -429,12 +429,12 @@ Dans `claude_desktop_config.json` :
 ### Via Python (client MCP)
 
 ```python
-from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamablehttp_client
 from mcp import ClientSession
 
 async def exemple():
     headers = {"Authorization": "Bearer votre_token"}
-    async with sse_client("http://localhost:8080/sse", headers=headers) as (r, w):
+    async with streamablehttp_client("http://localhost:8080/mcp", headers=headers) as (r, w, _):
         async with ClientSession(r, w) as session:
             await session.initialize()
 
@@ -458,7 +458,7 @@ async def exemple():
 ### Installation CLI
 
 ```bash
-pip install click rich prompt-toolkit httpx httpx-sse
+pip install click rich prompt-toolkit mcp[cli]>=1.8.0
 export MCP_URL=http://localhost:8080
 export MCP_TOKEN=votre_token
 ```
@@ -532,7 +532,7 @@ Voir [scripts/README.md](scripts/README.md) pour le détail de chaque test.
 ### WAF (Caddy + Coraza)
 
 - **OWASP CRS** : injection SQL/XSS, path traversal, SSRF
-- **Rate Limiting** : 60 SSE/min, 300 messages/min
+- **Rate Limiting** : 200 MCP/min (Streamable HTTP)
 - **TLS automatique** : Let's Encrypt en production (`SITE_ADDRESS=domaine.com`)
 - **Container non-root** : utilisateur `mcp`
 
@@ -622,9 +622,9 @@ docker compose logs waf --tail 20
 
 ### Graph Bridge : connexion impossible
 
-- Vérifiez que Graph Memory est accessible : `curl https://votre-graph-memory/sse`
+- Vérifiez que Graph Memory est accessible : `curl https://votre-graph-memory/mcp`
 - Vérifiez le token Graph Memory (Bearer)
-- L'URL peut être avec ou sans `/sse` (normalisée automatiquement)
+- L'URL peut être avec ou sans `/mcp` (normalisée automatiquement)
 
 ### Rebuild après modification du code
 

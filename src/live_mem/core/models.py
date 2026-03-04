@@ -26,7 +26,7 @@ class GraphMemoryConfig(BaseModel):
 
     Stocké dans _meta.json, champ "graph_memory".
     """
-    url: str = ""                               # URL SSE de graph-memory (ex: "http://localhost:8080/sse")
+    url: str = ""                               # URL de graph-memory (ex: "http://localhost:8080/mcp")
     token: str = ""                             # Bearer token pour graph-memory
     memory_id: str = ""                         # Memory cible dans graph-memory
     ontology: str = "general"                   # Ontologie graph-memory à utiliser

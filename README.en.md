@@ -72,7 +72,7 @@ Live Memory + Graph Memory directly implements this architecture:
 │  └──────────────────┘         └──────────┬───────────┘      │
 │                                          │                  │
 │                                     graph_push              │
-│                                     (MCP SSE)               │
+│                                     (MCP Streamable HTTP)               │
 │                                          │                  │
 │                               ┌──────────▼───────────┐      │
 │                               │  🌐 Graph Memory     │      │
@@ -110,7 +110,7 @@ Specifically, agents can:
           │                   │                │
           └────────┬──────────┘                │
                    │                           │
-                   ▼  MCP Protocol (HTTP/SSE)  ▼
+                   ▼  MCP Protocol (Streamable HTTP)  ▼
           ┌────────────────────────────────────────┐
           │   Caddy WAF (Coraza CRS)               │
           │   Rate Limiting • TLS • OWASP CRS      │
@@ -123,7 +123,7 @@ Specifically, agents can:
           └──────┬──────────┬──────┬───────┘
                  │          │      │
           ┌──────┴──┐  ┌────┴───┐  │
-          │   S3    │  │ LLMaaS │  │  MCP SSE
+          │   S3    │  │ LLMaaS │  │  MCP Streamable HTTP
           │Dell ECS │  │ CT API │  │  (optional)
           └─────────┘  └────────┘  │
                        ┌───────────┴────────────┐
@@ -177,7 +177,7 @@ docker compose up -d
 docker compose ps
 
 # Health check
-curl -s http://localhost:8080/sse | head -1
+curl -s http://localhost:8080/health
 ```
 
 ### 3b. Local Start (development)
@@ -193,7 +193,7 @@ cd src && python -m live_mem
 ### 4. Install CLI (optional)
 
 ```bash
-pip install click rich prompt-toolkit httpx httpx-sse
+pip install click rich prompt-toolkit mcp[cli]>=1.8.0
 ```
 
 ### 5. Verify Installation
@@ -258,7 +258,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 MCP Tools
 
-30 tools exposed via the MCP protocol (HTTP/SSE), divided into 7 categories.
+30 tools exposed via the MCP protocol (Streamable HTTP), divided into 7 categories.
 
 ### System (2 tools)
 
@@ -428,7 +428,7 @@ In Cline's MCP settings:
 {
   "mcpServers": {
     "live-memory": {
-      "url": "http://localhost:8080/sse",
+      "url": "http://localhost:8080/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_TOKEN"
       }
@@ -445,7 +445,7 @@ In `claude_desktop_config.json`:
 {
   "mcpServers": {
     "live-memory": {
-      "url": "http://localhost:8080/sse",
+      "url": "http://localhost:8080/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_TOKEN"
       }
@@ -457,12 +457,12 @@ In `claude_desktop_config.json`:
 ### Via Python (MCP client)
 
 ```python
-from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamablehttp_client
 from mcp import ClientSession
 
 async def example():
     headers = {"Authorization": "Bearer your_token"}
-    async with sse_client("http://localhost:8080/sse", headers=headers) as (r, w):
+    async with streamablehttp_client("http://localhost:8080/mcp", headers=headers) as (r, w, _):
         async with ClientSession(r, w) as session:
             await session.initialize()
 
@@ -486,7 +486,7 @@ async def example():
 ### CLI Installation
 
 ```bash
-pip install click rich prompt-toolkit httpx httpx-sse
+pip install click rich prompt-toolkit mcp[cli]>=1.8.0
 export MCP_URL=http://localhost:8080
 export MCP_TOKEN=your_token
 ```
@@ -558,7 +558,7 @@ python scripts/test_recette.py --step --no-cleanup
 ### WAF (Caddy + Coraza)
 
 - **OWASP CRS**: SQL/XSS injection, path traversal, SSRF
-- **Rate Limiting**: 60 SSE/min, 300 messages/min
+- **Rate Limiting**: 200 MCP/min (Streamable HTTP)
 - **Automatic TLS**: Let's Encrypt in production (`SITE_ADDRESS=domain.com`)
 - **Non-root container**: `mcp` user
 
