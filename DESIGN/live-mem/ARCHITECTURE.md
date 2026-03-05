@@ -60,11 +60,11 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank)
               │                    │                 │
               └────────┬───────────┘                 │
                        │                             │
-                       ▼ MCP Protocol (HTTP/SSE)     ▼
+                       ▼ MCP Protocol (Streamable HTTP)     ▼
 ┌──────────────────────────────────────────────────────────┐
 │                    Coraza WAF (Caddy)                     │
 │  • OWASP CRS • Rate Limiting • TLS Let's Encrypt        │
-│  • Routes SSE/messages sans WAF (streaming)              │
+│  • Routes MCP sans WAF (streaming)              │
 └──────────────────────────┬───────────────────────────────┘
                            │ Réseau Docker interne
                            ▼
@@ -97,7 +97,7 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank)
 │                                                           │
 │  ┌────────────────────────────────────────┐               │
 │  │         Graph Bridge (optionnel)        │               │
-│  │  • Client MCP SSE vers Graph Memory     │               │
+│  │  • Client MCP Streamable HTTP vers Graph Memory     │               │
 │  │  • Sync bank → graphe de connaissances  │               │
 │  └────────────────────────────────────────┘               │
 └──────────────────────────┬───────────────────────────────┘
@@ -108,7 +108,7 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank)
     │  S3 Object   │ │  LLMaaS API  │ │  Graph Memory      │
     │  Store       │ │  (Cloud      │ │  (optionnel)       │
     │  (Dell ECS)  │ │   Temple)    │ │  Neo4j + Qdrant    │
-    │  Bucket:     │ │  qwen3-2507  │ │  via MCP SSE       │
+    │  Bucket:     │ │  qwen3-2507  │ │  via MCP Streamable HTTP       │
     │  live-mem    │ │  :235b       │ │                    │
     └──────────────┘ └──────────────┘ └────────────────────┘
 ```
@@ -121,7 +121,7 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank)
 | **MCP Server**           | Serveur MCP Python (30 outils, 7 catégories)| FastMCP + Uvicorn (ASGI)                 |
 | **Storage Service**      | Abstraction S3 (lecture/écriture/listing)   | boto3 hybride SigV2/V4                   |
 | **Consolidator Service** | Synthèse LLM des notes → bank               | AsyncOpenAI (qwen3-2507:235b)            |
-| **Graph Bridge**         | Pont vers Graph Memory (mémoire long terme) | Client MCP SSE minimaliste               |
+| **Graph Bridge**         | Pont vers Graph Memory (mémoire long terme) | SDK MCP (streamablehttp_client)               |
 | **Auth Middleware**       | Authentification Bearer Token               | ASGI middleware custom                   |
 | **Token Manager**        | Gestion des tokens (CRUD)                   | JSON sur S3 (`_system/tokens.json`)      |
 | **Static Files**         | Interface web /live + API REST              | ASGI middleware (StaticFilesMiddleware)   |
@@ -133,19 +133,19 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank)
 | ---------------- | ------------------------------------- | ------------------------------ | ----------- |
 | **S3**           | Cloud Temple (Dell ECS) ou compatible | Stockage de TOUTES les données | ✅          |
 | **LLMaaS**       | Cloud Temple (API OpenAI-compatible)  | Consolidation live → bank      | ✅          |
-| **Graph Memory** | Instance graph-memory (MCP SSE)       | Mémoire long terme (graphe)    | ❌ Optionnel |
+| **Graph Memory** | Instance graph-memory (MCP Streamable HTTP)       | Mémoire long terme (graphe)    | ❌ Optionnel |
 
 ### 3.4 Stack technique
 
 | Composant        | Technologie             | Rôle                               |
 | ---------------- | ----------------------- | ---------------------------------- |
-| Framework MCP    | `FastMCP` (Python SDK)  | Expose les outils via HTTP/SSE     |
+| Framework MCP    | `FastMCP` (Python SDK)  | Expose les outils via Streamable HTTP     |
 | Serveur HTTP     | `Uvicorn` (ASGI)        | Sert l'application FastMCP         |
 | Configuration    | `pydantic-settings`     | Variables d'environnement + `.env` |
 | CLI scriptable   | `Click`                 | Commandes en ligne                 |
 | Shell interactif | `prompt_toolkit`        | Autocomplétion, historique         |
 | Affichage        | `Rich`                  | Tables, panels, couleurs, Markdown |
-| Client HTTP/SSE  | `httpx` + `httpx-sse`   | CLI → serveur                      |
+| Client MCP     | SDK MCP ≥1.8.0          | CLI + Graph Bridge → serveur                      |
 | Auth             | Bearer Token            | Authentification par token         |
 | S3 client        | `boto3`                 | Stockage S3 (hybride SigV2/V4)     |
 | LLM client       | `openai` (AsyncOpenAI)  | Appels LLMaaS                      |
@@ -172,7 +172,7 @@ StaticFilesMiddleware   ← Intercepte /live, /static/*, /api/*
 HostNormalizerMiddleware ← Normalise le header Host (pour reverse proxy)
     │
     ▼
-mcp.sse_app()           ← Handler MCP SSE (outils via /sse + /messages)
+mcp.streamable_http_app()           ← Handler MCP Streamable HTTP (outils via /mcp)
 ```
 
 ---
@@ -256,7 +256,7 @@ Agent → graph_push("projet-alpha")
                 ▼
         Pour chaque fichier bank :
         ┌─────────────────────────────────────────────┐
-        │  Via MCP SSE vers Graph Memory :            │
+        │  Via MCP Streamable HTTP vers Graph Memory :            │
         │  1. Supprime l'ancien document (si existant)│
         │  2. Ingère le nouveau contenu               │
         │     (extraction LLM entités/relations)      │
@@ -346,7 +346,7 @@ Live Memory expose une **interface web SPA** sur `/live` :
 | **Bank read_all**            | Lecture complète de la bank en une requête            |
 | **Synthèse résiduelle**      | `_synthesis.md` comme pont entre consolidations      |
 | **Tokens sur S3**            | Plus besoin de Neo4j pour stocker les tokens         |
-| **Graph Bridge**             | Pont MCP SSE vers graph-memory (mémoire long terme)  |
+| **Graph Bridge**             | Pont MCP Streamable HTTP vers graph-memory (mémoire long terme)  |
 | **Garbage Collector**        | Nettoyage/consolidation des notes orphelines         |
 | **Interface web /live**      | Dashboard + Timeline + Bank Viewer avec auto-refresh |
 
@@ -373,7 +373,7 @@ Live Memory expose une **interface web SPA** sur `/live` :
 | **8080** | Entrant   | HTTP (dev uniquement)              |
 | —        | Sortant   | `api.ai.cloud-temple.com` (LLMaaS) |
 | —        | Sortant   | `*.s3.fr1.cloud-temple.com` (S3)   |
-| —        | Sortant   | Graph Memory (MCP SSE, optionnel)  |
+| —        | Sortant   | Graph Memory (MCP Streamable HTTP, optionnel)  |
 
 ---
 

@@ -130,7 +130,7 @@ response = await client.chat.completions.create(
 | **Neo4j**      | ✅ Graphe de connaissances                  | ❌ Non utilisé                             |
 | **Qdrant**     | ✅ Base vectorielle RAG                     | ❌ Non utilisé                             |
 | **Embeddings** | ✅ bge-m3:567m                              | ❌ Non utilisé                             |
-| **Graph Bridge** | —                                          | ✅ Client MCP SSE vers graph-memory        |
+| **Graph Bridge** | —                                          | ✅ Client MCP Streamable HTTP vers graph-memory        |
 
 ---
 
@@ -143,7 +143,7 @@ response = await client.chat.completions.create(
 | MCP Server      | `http://localhost:8002` (interne Docker)        | Bearer Token |
 | WAF             | `http://localhost:8080` (dev)                   | Transparent  |
 | Interface web   | `http://localhost:8080/live`                    | Bearer Token |
-| Graph Memory    | `https://graph-mem.mcp.cloud-temple.app/sse`   | Bearer Token |
+| Graph Memory    | `https://graph-mem.mcp.cloud-temple.app/mcp`   | Bearer Token |
 
 ---
 

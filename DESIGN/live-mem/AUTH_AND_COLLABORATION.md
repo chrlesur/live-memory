@@ -292,8 +292,8 @@ async def live_note(space_id: str, category: str, content: str, ...) -> dict:
 Chaque requête HTTP est loguée sur `stderr` via `LoggingMiddleware` :
 
 ```
-19:05:12 INFO  [live_mem.auth] GET /sse → 200 (45.2ms)
-19:05:15 INFO  [live_mem.auth] POST /messages/abc123 → 200 (120.5ms)
+19:05:12 INFO  [live_mem.auth] GET /mcp → 200 (45.2ms)
+19:05:15 INFO  [live_mem.auth] POST /mcp → 200 (120.5ms)
 ```
 
 ### 4.4 Recommandations

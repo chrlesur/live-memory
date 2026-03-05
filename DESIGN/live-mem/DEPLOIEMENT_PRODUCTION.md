@@ -16,7 +16,7 @@ Live Memory est déployé via Docker Compose avec 2 services :
 **Différence avec graph-memory** : Pas de Neo4j ni Qdrant → déploiement beaucoup plus léger.
 
 **Fonctionnalités exposées** :
-- 30 outils MCP via SSE (`/sse` + `/messages/*`)
+- 30 outils MCP via Streamable HTTP (`/mcp`)
 - Interface web de visualisation (`/live`)
 - 5 endpoints API REST (`/api/*`)
 
@@ -65,7 +65,7 @@ docker compose build && docker compose up -d
 
 ```bash
 # Health check
-curl -s http://localhost:8080/sse | head -1
+curl -s http://localhost:8080/mcp | head -1
 
 # Interface web
 open http://localhost:8080/live
@@ -127,8 +127,8 @@ networks:
 
 | Route | WAF Coraza | Timeout | Usage |
 |---|---|---|---|
-| `/sse*` | ❌ (bypass) | Illimité | Connexions SSE longues |
-| `/messages/*` | ❌ (bypass) | 30min | Appels d'outils MCP |
+| `/mcp*` | ❌ (bypass) | Illimité | Connexions MCP Streamable HTTP |
+| ~~`/messages/*`~~ (supprimé, unifié dans `/mcp*`) | ❌ (bypass) | 30min | Appels d'outils MCP |
 | `/api/*` | ✅ | 5min | API REST (interface web) |
 | `/live`, `/static/*` | ✅ | Standard | Interface web |
 | Tout le reste | ✅ | Standard | Health, etc. |

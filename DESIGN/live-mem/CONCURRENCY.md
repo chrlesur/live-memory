@@ -189,7 +189,7 @@ T+0s:  Agent A → bank_consolidate("projet-alpha")
        → Lock consolidation acquis
 
 T+5s:  Agent B → graph_push("projet-alpha")
-       → Pas de lock nécessaire (lecture seule de la bank + appel MCP SSE)
+       → Pas de lock nécessaire (lecture seule de la bank + appel MCP Streamable HTTP)
        → Pousse la bank dans son état actuel (pas celle en cours de mise à jour)
 ```
 
@@ -203,7 +203,7 @@ T+5s:  Agent B → graph_push("projet-alpha")
 | `live_read` (50 notes) | 200-500ms (1 LIST + N GETs) | Non | Aucun |
 | `bank_read_all` (6 fichiers) | 100-300ms (1 LIST + 6 GETs) | Non | Aucun |
 | `bank_consolidate` | 20-60s (LLM + I/O S3) | Oui (par espace) | Bloque les autres conso du même espace |
-| `graph_push` (6 fichiers) | 60-180s (MCP SSE) | Non | Aucun |
+| `graph_push` (6 fichiers) | 60-180s (MCP Streamable HTTP) | Non | Aucun |
 | `admin_create_token` | 100-200ms (1 GET + 1 PUT S3) | Oui (tokens) | Sérialisation courte |
 
 ---

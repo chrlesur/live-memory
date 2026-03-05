@@ -424,7 +424,7 @@ Connecte un space Live Memory à une instance Graph Memory. Teste la connexion, 
 @mcp.tool()
 async def graph_connect(
     space_id: str,
-    url: str,                # URL de Graph Memory (ex: "http://localhost:8080/sse")
+    url: str,                # URL de Graph Memory (ex: "http://localhost:8080/mcp")
     token: str,              # Bearer token pour Graph Memory
     memory_id: str,          # Identifiant de la mémoire cible
     ontology: str = "general"  # general | legal | cloud | managed-services | presales
@@ -437,7 +437,7 @@ async def graph_connect(
   "status": "ok",
   "space_id": "projet-alpha",
   "graph_memory": {
-    "url": "https://graph-mem.mcp.cloud-temple.app/sse",
+    "url": "https://graph-mem.mcp.cloud-temple.app/mcp",
     "memory_id": "projet-alpha-mem",
     "ontology": "general",
     "memory_status": "created"
@@ -446,8 +446,8 @@ async def graph_connect(
 ```
 
 **Comportement** :
-- Normalise l'URL (ajoute `/sse` si absent)
-- Teste la connexion MCP SSE (handshake complet)
+- Normalise l'URL (ajoute `/mcp` si absent)
+- Teste la connexion MCP Streamable HTTP
 - Crée la mémoire dans Graph Memory si elle n'existe pas
 - Sauvegarde la config dans `_meta.json` (champ `graph_memory`)
 
@@ -502,7 +502,7 @@ async def graph_status(space_id: str) -> dict:
   "status": "ok",
   "connected": true,
   "graph_memory": {
-    "url": "https://graph-mem.mcp.cloud-temple.app/sse",
+    "url": "https://graph-mem.mcp.cloud-temple.app/mcp",
     "memory_id": "projet-alpha-mem",
     "last_push": "2026-03-01T14:00:00Z",
     "push_count": 3,

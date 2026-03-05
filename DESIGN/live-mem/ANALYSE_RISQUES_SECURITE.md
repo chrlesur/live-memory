@@ -9,7 +9,7 @@
 | Couche                 | Protection                                                       | Fichier              |
 | ---------------------- | ---------------------------------------------------------------- | -------------------- |
 | **WAF Coraza**         | OWASP CRS (injection SQL, XSS, path traversal, scanners)         | `waf/Caddyfile`      |
-| **Rate Limiting**      | Par IP : SSE 60/min, messages 300/min, API 60/min, global 600/min | `waf/Caddyfile`      |
+| **Rate Limiting**      | Par IP : MCP 300/min, API 60/min, global 600/min | `waf/Caddyfile`      |
 | **TLS**                | Let's Encrypt automatique (production)                           | `waf/Caddyfile`      |
 | **Security Headers**   | CSP, X-Frame-Options DENY, HSTS, nosniff, Permissions-Policy     | `waf/Caddyfile`      |
 | **Auth Token**         | Bearer token par client, permissions read/write/admin            | `auth/middleware.py` |
@@ -18,7 +18,7 @@
 | **Input Validation**   | Regex sur `space_id`, `category`, longueur max `content`         | outils MCP           |
 | **Container non-root** | `USER mcp` (UID 10001) dans le Dockerfile                       | `Dockerfile`         |
 | **Réseau isolé**       | Service MCP non exposé, seul WAF accessible                      | `docker-compose.yml` |
-| **Routes WAF bypass**  | SSE + messages sans WAF (auth par token côté serveur)            | `waf/Caddyfile`      |
+| **Routes WAF bypass**  | MCP sans WAF (auth par token côté serveur)            | `waf/Caddyfile`      |
 
 ---
 

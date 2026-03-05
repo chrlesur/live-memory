@@ -117,7 +117,7 @@ Métadonnées de l'espace. Créé par `space_create`, mis à jour par `bank_cons
   "consolidation_count": 3,
   "total_notes_processed": 127,
   "graph_memory": {
-    "url": "https://graph-mem.mcp.cloud-temple.app/sse",
+    "url": "https://graph-mem.mcp.cloud-temple.app/mcp",
     "token": "gm_xxx...",
     "memory_id": "projet-alpha-mem",
     "ontology": "general",
