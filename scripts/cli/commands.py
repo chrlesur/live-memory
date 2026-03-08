@@ -297,6 +297,33 @@ def token_revoke_cmd(ctx, token_hash):
               lambda r: show_success(r.get("message", "Token révoqué")))
 
 
+@token_grp.command("delete")
+@click.argument("token_hash")
+@click.pass_context
+def token_delete_cmd(ctx, token_hash):
+    """🗑️ Supprimer physiquement un token (irréversible)."""
+    _run_tool(ctx, "admin_delete_token", {"token_hash": token_hash},
+              lambda r: show_success(r.get("message", "Token supprimé")))
+
+
+@token_grp.command("purge")
+@click.option("--all", "purge_all", is_flag=True, help="Supprimer TOUS les tokens (pas seulement les révoqués)")
+@click.option("--confirm", is_flag=True, help="Confirmer la purge (requis)")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def token_purge_cmd(ctx, purge_all, confirm, jflag):
+    """🧹 Purger les tokens révoqués (ou tous avec --all). Nécessite --confirm."""
+    if not confirm:
+        mode = "TOUS les tokens" if purge_all else "les tokens révoqués"
+        show_warning(f"⚠️  Purge de {mode} — ajoutez --confirm pour confirmer :")
+        show_warning(f"   token purge {'--all ' if purge_all else ''}--confirm")
+        return
+    revoked_only = not purge_all
+    _run_tool(ctx, "admin_purge_tokens", {"revoked_only": revoked_only},
+              lambda r: show_success(f"{r.get('deleted', 0)} token(s) supprimé(s), {r.get('remaining', 0)} restant(s)"),
+              jflag)
+
+
 # ─────────────────────────────────────────────────────────────
 # Backup (sous-groupe)
 # ─────────────────────────────────────────────────────────────

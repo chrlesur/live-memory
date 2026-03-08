@@ -49,6 +49,8 @@ SHELL_COMMANDS = {
     "token create": "Créer un token (token create <name> <perms>)",
     "token list": "Lister les tokens",
     "token revoke": "Révoquer un token (token revoke <hash>)",
+    "token delete": "Supprimer physiquement un token (token delete <hash>)",
+    "token purge": "Purger les tokens révoqués (token purge [--all])",
     "graph connect": "Connecter à Graph Memory (graph connect <space> <url> <token> <memory_id> [ontology])",
     "graph push": "Pousser la bank dans le graphe (graph push <space>)",
     "graph status": "Statut connexion Graph Memory (graph status <space>)",
@@ -255,8 +257,27 @@ async def _handle_token(client, args, json_out):
         result = await client.call_tool("admin_revoke_token", {"token_hash": args[1]})
         show_success("Token révoqué") if result.get("status") == "ok" else show_error(result.get("message", "?"))
 
+    elif sub == "delete" and len(args) >= 2:
+        result = await client.call_tool("admin_delete_token", {"token_hash": args[1]})
+        show_success(result.get("message", "Token supprimé")) if result.get("status") == "deleted" else show_error(result.get("message", "?"))
+
+    elif sub == "purge":
+        confirm = "--confirm" in args
+        purge_all = "--all" in args
+        if not confirm:
+            mode = "TOUS les tokens" if purge_all else "les tokens révoqués"
+            show_warning(f"⚠️  Purge de {mode} — ajoutez --confirm pour confirmer :")
+            show_warning(f"   token purge {'--all ' if purge_all else ''}--confirm")
+            return
+        revoked_only = not purge_all
+        result = await client.call_tool("admin_purge_tokens", {"revoked_only": revoked_only})
+        if result.get("status") == "ok":
+            show_success(f"{result.get('deleted', 0)} token(s) supprimé(s), {result.get('remaining', 0)} restant(s)")
+        else:
+            show_error(result.get("message", "?"))
+
     else:
-        show_warning("Usage: token [create|list|revoke] ...")
+        show_warning("Usage: token [create|list|revoke|delete|purge] ...")
 
 
 async def _handle_graph(client, args, json_out):

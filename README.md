@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.5.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.5.2-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -119,7 +119,7 @@ Concrètement, les agents peuvent :
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   30 outils • Auth Bearer      │
+          │   32 outils • Auth Bearer      │
           │   Consolidation LLM            │
           └──────┬──────────┬──────┬───────┘
                  │          │      │
@@ -259,7 +259,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 Outils MCP
 
-30 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
+32 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
 
 ### System (2 outils)
 
@@ -316,15 +316,17 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | `backup_download` | `backup_id`                | Télécharge en tar.gz base64                       |
 | `backup_delete`   | `backup_id`                | Supprime un backup                                |
 
-### Admin (5 outils)
+### Admin (7 outils)
 
-| Outil                | Paramètres                                               | Description                                                                  |
-| -------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `admin_create_token` | `name`, `permissions`, `space_ids?`, `expires_in_days?`  | Crée un token (⚠️ affiché une seule fois). Permissions: read, write, admin |
-| `admin_list_tokens`  | —                                                        | Liste les tokens actifs                                                      |
-| `admin_revoke_token` | `token_hash`                                             | Révoque un token                                                             |
-| `admin_update_token` | `token_hash`, `space_ids`, `action`                      | Modifie les espaces d'un token (add/remove/set)                              |
-| `admin_gc_notes`     | `space_id?`, `max_age_days?`, `confirm?`, `delete_only?` | Garbage Collector : nettoie les notes orphelines                             |
+| Outil                 | Paramètres                                               | Description                                                                  |
+| --------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `admin_create_token`  | `name`, `permissions`, `space_ids?`, `expires_in_days?`  | Crée un token (⚠️ affiché une seule fois). Permissions: read, write, admin |
+| `admin_list_tokens`   | —                                                        | Liste les tokens actifs                                                      |
+| `admin_revoke_token`  | `token_hash`                                             | Révoque un token (le rend inutilisable)                                      |
+| `admin_delete_token`  | `token_hash`                                             | Supprime physiquement un token du registre (⚠️ irréversible)               |
+| `admin_purge_tokens`  | `revoked_only?`                                          | Purge en masse : révoqués seuls (défaut) ou tous les tokens                  |
+| `admin_update_token`  | `token_hash`, `space_ids`, `action`                      | Modifie les espaces d'un token (add/remove/set)                              |
+| `admin_gc_notes`      | `space_id?`, `max_age_days?`, `confirm?`, `delete_only?` | Garbage Collector : nettoie les notes orphelines                             |
 
 ---
 
@@ -563,7 +565,7 @@ Voir [scripts/README.md](scripts/README.md) pour le détail de chaque test.
 
 ```
 live-memory/
-├── src/live_mem/              # Code source (30 outils MCP + interface web)
+├── src/live_mem/              # Code source (32 outils MCP + interface web)
 │   ├── server.py              # Serveur FastMCP + middlewares
 │   ├── config.py              # Configuration pydantic-settings
 │   ├── auth/                  # Authentification
@@ -592,9 +594,10 @@ live-memory/
 │       ├── bank.py            #   4 outils (bank + consolidation) — 6 params
 │       ├── graph.py           #   4 outils (Graph Bridge) — 8 params
 │       ├── backup.py          #   5 outils (snapshots) — 8 params
-│       └── admin.py           #   5 outils (tokens + GC) — 12 params
+│       └── admin.py           #   7 outils (tokens + GC + purge) — 14 params
 ├── scripts/                   # CLI + Shell + Tests
 │   ├── mcp_cli.py             #   Point d'entrée CLI Click
+│   ├── delete_tokens.py       #   Utilitaire gestion tokens à distance
 │   ├── check_annotated_params.py # Vérification des descriptions de paramètres
 │   ├── test_recette.py        #   Test E2E (1 agent)
 │   ├── test_multi_agents.py   #   Test multi-agents (3 agents)
@@ -608,7 +611,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.5.1
+├── VERSION                    # 0.5.2
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -671,4 +674,4 @@ Développé par **Christophe Lesur**, Directeur Général.
 
 ---
 
-*Live Memory v0.5.1 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.5.2 — Mémoire de travail partagée pour agents IA collaboratifs*

@@ -5,6 +5,25 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.5.2] — 2026-03-09
+
+### Ajouté — Suppression physique des tokens
+- **`admin_delete_token`** 👑 — Supprime physiquement un token du registre `tokens.json` sur S3
+- **`admin_purge_tokens`** 👑 — Purge en masse : tokens révoqués seuls (`revoked_only=True`) ou tous (`revoked_only=False`)
+- **32 outils MCP** (était 30) — 7 catégories (admin passe de 5 à 7 outils)
+- **Script `scripts/delete_tokens.py`** — Utilitaire CLI pour lister, révoquer et purger les tokens à distance
+  - `list` : liste les tokens
+  - `revoke_all` : révoque tous les tokens actifs
+  - `purge` : supprime physiquement les tokens révoqués
+  - `purge_all` : supprime physiquement TOUS les tokens
+
+### Notes
+- Le **bootstrap key** (variable d'environnement `ADMIN_BOOTSTRAP_KEY`) n'est jamais stocké dans `tokens.json` et ne peut pas être supprimé
+- Les 2 nouveaux outils utilisent le pattern `Annotated[type, Field(description="...")]` pour les descriptions Cline
+- Méthodes `delete_token()` et `purge_tokens()` ajoutées dans `TokenService` (`core/tokens.py`)
+
+---
+
 ## [0.5.1] — 2026-03-08
 
 ### Ajouté — Descriptions de paramètres MCP pour Cline

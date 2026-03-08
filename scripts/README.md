@@ -99,7 +99,39 @@ python scripts/mcp_cli.py token list
 
 # Révoquer un token
 python scripts/mcp_cli.py token revoke sha256:a1b2c3...
+
+# Supprimer physiquement un token (irréversible)
+python scripts/mcp_cli.py token delete sha256:a1b2c3...
+
+# Purger les tokens révoqués (nécessite --confirm)
+python scripts/mcp_cli.py token purge --confirm
+
+# Purger TOUS les tokens (nécessite --all + --confirm)
+python scripts/mcp_cli.py token purge --all --confirm
 ```
+
+### Gestion des tokens à distance (`delete_tokens.py`)
+
+Script autonome pour gérer les tokens sur un serveur Live Memory distant :
+
+```bash
+export MCP_URL=https://live-mem.mcp.cloud-temple.app
+export MCP_TOKEN=votre_bootstrap_key
+
+# Lister les tokens
+python scripts/delete_tokens.py list
+
+# Révoquer tous les tokens actifs
+python scripts/delete_tokens.py revoke_all
+
+# Supprimer physiquement les tokens révoqués
+python scripts/delete_tokens.py purge
+
+# Supprimer physiquement TOUS les tokens (reset complet)
+python scripts/delete_tokens.py purge_all
+```
+
+> ⚠️ Le bootstrap key (env var) n'est jamais affecté par la purge.
 
 ### Garbage Collector
 
@@ -191,7 +223,11 @@ live-mem> graph push projet           # Pousser la bank dans le graphe
 live-mem> graph status projet         # Stats graphe (docs, entités, relations)
 live-mem> graph disconnect projet     # Déconnecter
 
-live-mem> token list                  # Tokens
+live-mem> token list                  # Lister les tokens
+live-mem> token revoke sha256:...     # Révoquer un token
+live-mem> token delete sha256:...     # Supprimer physiquement
+live-mem> token purge --confirm       # Purger les révoqués
+live-mem> token purge --all --confirm # Purger tous les tokens
 live-mem> backup list                 # Backups
 
 live-mem> bank list projet --json     # Mode JSON
@@ -310,6 +346,7 @@ python scripts/test_graph_bridge.py --step --no-cleanup
 ```
 scripts/
 ├── mcp_cli.py              # Point d'entrée CLI Click
+├── delete_tokens.py        # 🗑️ Utilitaire gestion tokens à distance
 ├── test_qualite.py         # ⭐ Test de qualité officiel (28 tests)
 ├── test_recette.py         # 🧪 Recette E2E (1 agent, 12 notes)
 ├── test_multi_agents.py    # 🧪 Multi-agents (3 agents collaborent)

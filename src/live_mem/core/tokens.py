@@ -159,6 +159,73 @@ class TokenService:
 
         return {"status": "ok", "message": "Token révoqué"}
 
+    async def delete_token(self, token_hash: str) -> dict:
+        """
+        Supprime physiquement un token du registre.
+
+        Contrairement à revoke_token qui marque le token comme révoqué,
+        cette méthode le retire complètement de tokens.json.
+
+        Args:
+            token_hash: Hash SHA-256 du token (préfixe ou tronqué)
+
+        Returns:
+            {"status": "deleted", "name": "..."} ou erreur
+        """
+        async with get_lock_manager().tokens:
+            store = await self._load_store()
+            original_count = len(store.tokens)
+            deleted_name = None
+
+            for i, t in enumerate(store.tokens):
+                if t.hash.startswith(token_hash) or token_hash.startswith(t.hash[:20]):
+                    deleted_name = t.name
+                    store.tokens.pop(i)
+                    break
+
+            if deleted_name is None:
+                return {"status": "not_found", "message": "Token introuvable"}
+
+            await self._save_store(store)
+
+        return {
+            "status": "deleted",
+            "name": deleted_name,
+            "message": f"Token '{deleted_name}' supprimé physiquement",
+            "remaining": original_count - 1,
+        }
+
+    async def purge_tokens(self, revoked_only: bool = True) -> dict:
+        """
+        Supprime physiquement plusieurs tokens du registre.
+
+        Args:
+            revoked_only: Si True, ne supprime que les tokens révoqués.
+                         Si False, supprime TOUS les tokens.
+
+        Returns:
+            {"status": "ok", "deleted": N, "remaining": M}
+        """
+        async with get_lock_manager().tokens:
+            store = await self._load_store()
+            original_count = len(store.tokens)
+
+            if revoked_only:
+                store.tokens = [t for t in store.tokens if not t.revoked]
+            else:
+                store.tokens = []
+
+            deleted_count = original_count - len(store.tokens)
+            await self._save_store(store)
+
+        return {
+            "status": "ok",
+            "deleted": deleted_count,
+            "remaining": len(store.tokens),
+            "mode": "revoked_only" if revoked_only else "all",
+            "message": f"{deleted_count} token(s) supprimé(s) physiquement",
+        }
+
     async def update_token(
         self,
         token_hash: str,

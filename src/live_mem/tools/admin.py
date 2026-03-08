@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-Outils MCP — Catégorie Admin (5 outils).
+Outils MCP — Catégorie Admin (7 outils).
 
 Gestion des tokens d'authentification et maintenance.
 
 Permissions :
-    - admin_create_token 👑 (admin) — Crée un token
-    - admin_list_tokens  👑 (admin) — Liste les tokens
-    - admin_revoke_token 👑 (admin) — Révoque un token
-    - admin_update_token 👑 (admin) — Modifie un token
-    - admin_gc_notes     👑 (admin) — GC des notes orphelines
+    - admin_create_token  👑 (admin) — Crée un token
+    - admin_list_tokens   👑 (admin) — Liste les tokens
+    - admin_revoke_token  👑 (admin) — Révoque un token
+    - admin_delete_token  👑 (admin) — Supprime physiquement un token
+    - admin_purge_tokens  👑 (admin) — Purge en masse les tokens
+    - admin_update_token  👑 (admin) — Modifie un token
+    - admin_gc_notes      👑 (admin) — GC des notes orphelines
 
 Tous les outils admin requièrent la permission "admin".
 Voir AUTH_AND_COLLABORATION.md pour le modèle de tokens.
@@ -23,13 +25,13 @@ from pydantic import Field
 
 def register(mcp: FastMCP) -> int:
     """
-    Enregistre les 5 outils admin sur l'instance MCP.
+    Enregistre les 7 outils admin sur l'instance MCP.
 
     Args:
         mcp: Instance FastMCP
 
     Returns:
-        Nombre d'outils enregistrés (5)
+        Nombre d'outils enregistrés (7)
     """
 
     @mcp.tool()
@@ -116,6 +118,68 @@ def register(mcp: FastMCP) -> int:
                 return admin_err
 
             return await get_token_service().revoke_token(token_hash)
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    @mcp.tool()
+    async def admin_delete_token(
+        token_hash: Annotated[str, Field(description="Hash tronqué du token à supprimer (obtenu via admin_list_tokens)")],
+    ) -> dict:
+        """
+        Supprime physiquement un token du registre.
+
+        Contrairement à revoke_token qui marque le token comme inactif,
+        cette opération le retire complètement de tokens.json.
+        ⚠️ Opération irréversible.
+
+        Note: Le bootstrap key (variable d'environnement) n'est jamais
+        dans tokens.json et ne peut donc pas être supprimé.
+
+        Args:
+            token_hash: Hash tronqué du token (depuis admin_list_tokens)
+
+        Returns:
+            Confirmation de suppression avec nombre de tokens restants
+        """
+        from ..auth.context import check_admin_permission
+        from ..core.tokens import get_token_service
+
+        try:
+            admin_err = check_admin_permission()
+            if admin_err:
+                return admin_err
+
+            return await get_token_service().delete_token(token_hash)
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    @mcp.tool()
+    async def admin_purge_tokens(
+        revoked_only: Annotated[bool, Field(default=True, description="True = supprime uniquement les tokens révoqués, False = supprime TOUS les tokens")] = True,
+    ) -> dict:
+        """
+        Purge en masse les tokens du registre.
+
+        Par défaut, ne supprime que les tokens révoqués (nettoyage).
+        Avec revoked_only=False, supprime TOUS les tokens (reset complet).
+
+        ⚠️ Opération irréversible. Le bootstrap key (env var) n'est pas affecté.
+
+        Args:
+            revoked_only: True = tokens révoqués seulement, False = tous
+
+        Returns:
+            Nombre de tokens supprimés et restants
+        """
+        from ..auth.context import check_admin_permission
+        from ..core.tokens import get_token_service
+
+        try:
+            admin_err = check_admin_permission()
+            if admin_err:
+                return admin_err
+
+            return await get_token_service().purge_tokens(revoked_only=revoked_only)
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -224,4 +288,4 @@ def register(mcp: FastMCP) -> int:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    return 5  # Nombre d'outils enregistrés
+    return 7  # Nombre d'outils enregistrés
