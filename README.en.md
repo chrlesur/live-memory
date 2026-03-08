@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -420,9 +420,11 @@ http://localhost:8080/live
 
 ## 🔌 MCP Integration
 
-### With Cline (VS Code)
+> 📖 **Full Guide**: See [GUIDE_INTEGRATION_CLINE.md](GUIDE_INTEGRATION_CLINE.md) for the step-by-step guide (Cline configuration, custom instructions, workflow, multi-agents, troubleshooting).
 
-In Cline's MCP settings:
+### With Cline (VS Code / VSCodium)
+
+In Cline's MCP settings (`cline_mcp_settings.json`):
 
 ```json
 {
@@ -430,11 +432,20 @@ In Cline's MCP settings:
     "live-memory": {
       "url": "http://localhost:8080/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_TOKEN"
+        "Authorization": "Bearer lm_YOUR_TOKEN"
       }
     }
   }
 }
+```
+
+Then add **Custom Instructions** so Cline uses the memory automatically:
+
+```
+You have access to Live Memory (MCP server). Space: "my-project", agent: "cline-dev".
+- At startup: bank_read_all("my-project")
+- While working: live_note with appropriate category
+- End of session: bank_consolidate("my-project", agent="cline-dev")
 ```
 
 ### With Claude Desktop
@@ -447,7 +458,7 @@ In `claude_desktop_config.json`:
     "live-memory": {
       "url": "http://localhost:8080/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_TOKEN"
+        "Authorization": "Bearer lm_YOUR_TOKEN"
       }
     }
   }
@@ -520,7 +531,7 @@ Autocomplete, history, Rich display. See [scripts/README.md](scripts/README.md) 
 
 ## 🧪 Tests
 
-4 E2E test scripts, all with `--step` (step-by-step) and `--no-cleanup`.
+5 E2E test scripts, all with `--step` (step-by-step) and `--no-cleanup`.
 
 ```bash
 docker compose up -d   # Prerequisite
@@ -538,6 +549,9 @@ python scripts/test_gc.py
 python scripts/test_graph_bridge.py \
   --graph-url https://graph-mem.mcp.cloud-temple.app \
   --graph-token your_token
+
+# 5. Quality: 28 tests covering all 7 tool categories
+python scripts/test_qualite.py
 
 # Step-by-step mode (Enter to proceed)
 python scripts/test_recette.py --step --no-cleanup
@@ -572,7 +586,7 @@ live-memory/
 │   ├── server.py              # FastMCP server + middlewares
 │   ├── config.py              # pydantic-settings configuration
 │   ├── auth/                  # Authentication
-│   │   ├── middleware.py      #   Auth + Logging + StaticFiles + HostNormalizer
+│   │   ├── middleware.py      #   Auth + Logging + StaticFiles
 │   │   └── context.py         #   check_access, check_write, check_admin
 │   ├── static/                # /live web interface
 │   │   ├── live.html          #   SPA (Dashboard + Live + Bank)
@@ -604,7 +618,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.4.0
+├── VERSION                    # 0.5.0
 ├── CHANGELOG.md
 └── FAQ.md
 ```
@@ -655,4 +669,4 @@ Developed by **Christophe Lesur**, CEO.
 
 ---
 
-*Live Memory v0.4.0 — Shared working memory for collaborative AI agents*
+*Live Memory v0.5.0 — Shared working memory for collaborative AI agents*

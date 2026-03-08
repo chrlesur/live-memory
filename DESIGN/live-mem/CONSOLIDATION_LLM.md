@@ -1,6 +1,6 @@
 # Pipeline de Consolidation LLM — Live Memory
 
-> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
+> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple
 
 ---
 
@@ -385,4 +385,4 @@ admin_gc_notes(space_id="projet-alpha", max_age_days=7, confirm=True)
 
 ---
 
-*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*
+*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*

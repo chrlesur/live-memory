@@ -1,6 +1,6 @@
 # Spécification des Outils MCP — Live Memory
 
-> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
+> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple
 
 ---
 
@@ -63,7 +63,7 @@ async def system_health() -> dict:
 {
   "status": "ok",
   "service_name": "Live Memory",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "uptime_seconds": 3600,
   "services": {
     "s3": {"status": "ok", "latency_ms": 45},
@@ -89,7 +89,7 @@ async def system_about() -> dict:
 {
   "status": "ok",
   "name": "Live Memory",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Mémoire de travail partagée pour agents IA collaboratifs",
   "author": "Cloud Temple",
   "documentation": "https://github.com/chrlesur/live-memory",
@@ -743,4 +743,4 @@ async def admin_gc_notes(
 
 ---
 
-*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*
+*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*

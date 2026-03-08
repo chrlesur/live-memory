@@ -1,6 +1,6 @@
 # Gestion de la Concurrence Multi-Agents — Live Memory
 
-> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
+> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple
 
 ---
 
@@ -136,7 +136,7 @@ Si live-mem devait tourner en multi-instance (load balancing), il faudrait :
 - Ou un système de lease sur S3 (lock file avec TTL)
 - Ou un routage par espace (chaque instance gère un sous-ensemble d'espaces)
 
-Ce n'est **pas prévu** pour la v0.4.0.
+Ce n'est **pas prévu** pour la v0.5.0.
 
 ---
 
@@ -208,4 +208,4 @@ T+5s:  Agent B → graph_push("projet-alpha")
 
 ---
 
-*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*
+*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*

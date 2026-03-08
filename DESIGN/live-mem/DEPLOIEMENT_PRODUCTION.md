@@ -1,6 +1,6 @@
 # Guide de Déploiement Production — Live Memory
 
-> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
+> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple
 
 ---
 
@@ -65,7 +65,7 @@ docker compose build && docker compose up -d
 
 ```bash
 # Health check
-curl -s http://localhost:8080/mcp | head -1
+curl -s http://localhost:8080/health
 
 # Interface web
 open http://localhost:8080/live
@@ -127,11 +127,12 @@ networks:
 
 | Route | WAF Coraza | Timeout | Usage |
 |---|---|---|---|
-| `/mcp*` | ❌ (bypass) | Illimité | Connexions MCP Streamable HTTP |
-| ~~`/messages/*`~~ (supprimé, unifié dans `/mcp*`) | ❌ (bypass) | 30min | Appels d'outils MCP |
+| `/mcp*` | ❌ (bypass) | Illimité | Endpoint unique MCP Streamable HTTP (POST/GET/DELETE) |
 | `/api/*` | ✅ | 5min | API REST (interface web) |
 | `/live`, `/static/*` | ✅ | Standard | Interface web |
-| Tout le reste | ✅ | Standard | Health, etc. |
+| Tout le reste | ✅ | Standard | Health (`/health`), etc. |
+
+> **Note v0.5.0** : Les anciennes routes `/sse*` et `/messages/*` (transport SSE) ont été supprimées et unifiées dans `/mcp*` (Streamable HTTP).
 
 ---
 
@@ -258,4 +259,4 @@ open http://localhost:8080/live
 
 ---
 
-*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*
+*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*

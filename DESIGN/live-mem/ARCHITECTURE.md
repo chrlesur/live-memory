@@ -1,6 +1,6 @@
 # Architecture — Live Memory MCP Server
 
-> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple  
+> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple  
 > **Projet** : live-mem | **Licence** : Apache 2.0
 
 ---
@@ -169,11 +169,10 @@ LoggingMiddleware       ← Trace méthode, path, status, durée (stderr)
 StaticFilesMiddleware   ← Intercepte /live, /static/*, /api/*
     │
     ▼
-HostNormalizerMiddleware ← Normalise le header Host (pour reverse proxy)
-    │
-    ▼
 mcp.streamable_http_app()           ← Handler MCP Streamable HTTP (outils via /mcp)
 ```
+
+> **Note v0.5.0** : `HostNormalizerMiddleware` a été supprimé — la normalisation du header Host est désormais gérée nativement par le WAF Caddy.
 
 ---
 
@@ -416,4 +415,4 @@ CONSOLIDATION_MAX_NOTES=500      # Max notes par consolidation
 
 ---
 
-*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*
+*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*

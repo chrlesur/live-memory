@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -392,9 +392,11 @@ Les endpoints `/api/*` nécessitent un Bearer Token. La page `/live` et les fich
 
 ## 🔌 Intégration MCP
 
-### Avec Cline (VS Code)
+> 📖 **Guide complet** : Voir [GUIDE_INTEGRATION_CLINE.md](GUIDE_INTEGRATION_CLINE.md) pour le guide pas-à-pas détaillé (configuration Cline, custom instructions, workflow, multi-agents, dépannage).
 
-Dans les settings MCP de Cline :
+### Avec Cline (VS Code / VSCodium)
+
+Dans les settings MCP de Cline (`cline_mcp_settings.json`) :
 
 ```json
 {
@@ -402,11 +404,20 @@ Dans les settings MCP de Cline :
     "live-memory": {
       "url": "http://localhost:8080/mcp",
       "headers": {
-        "Authorization": "Bearer VOTRE_TOKEN"
+        "Authorization": "Bearer lm_VOTRE_TOKEN"
       }
     }
   }
 }
+```
+
+Puis ajoutez des **Custom Instructions** pour que Cline utilise la mémoire automatiquement :
+
+```
+Tu as accès à Live Memory (serveur MCP). Space: "mon-projet", agent: "cline-dev".
+- Au démarrage: bank_read_all("mon-projet")
+- Pendant le travail: live_note avec category appropriée
+- En fin de session: bank_consolidate("mon-projet", agent="cline-dev")
 ```
 
 ### Avec Claude Desktop
@@ -419,7 +430,7 @@ Dans `claude_desktop_config.json` :
     "live-memory": {
       "url": "http://localhost:8080/mcp",
       "headers": {
-        "Authorization": "Bearer VOTRE_TOKEN"
+        "Authorization": "Bearer lm_VOTRE_TOKEN"
       }
     }
   }
@@ -492,7 +503,7 @@ Autocomplétion, historique, affichage Rich. Voir [scripts/README.md](scripts/RE
 
 ## 🧪 Tests
 
-4 scripts de test E2E, tous avec `--step` (pas-à-pas) et `--no-cleanup`.
+5 scripts de test E2E, tous avec `--step` (pas-à-pas) et `--no-cleanup`.
 
 ```bash
 docker compose up -d   # Prérequis
@@ -510,6 +521,9 @@ python scripts/test_gc.py
 python scripts/test_graph_bridge.py \
   --graph-url https://graph-mem.mcp.cloud-temple.app \
   --graph-token votre_token
+
+# 5. Qualité : 28 tests couvrant les 7 catégories d'outils
+python scripts/test_qualite.py
 
 # Mode pas-à-pas (Entrée pour avancer)
 python scripts/test_recette.py --step --no-cleanup
@@ -553,7 +567,7 @@ live-memory/
 │   ├── server.py              # Serveur FastMCP + middlewares
 │   ├── config.py              # Configuration pydantic-settings
 │   ├── auth/                  # Authentification
-│   │   ├── middleware.py      #   Auth + Logging + StaticFiles + HostNormalizer
+│   │   ├── middleware.py      #   Auth + Logging + StaticFiles
 │   │   └── context.py         #   check_access, check_write, check_admin
 │   ├── static/                # Interface web /live
 │   │   ├── live.html          #   SPA (Dashboard + Live + Bank)
@@ -593,7 +607,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.4.0
+├── VERSION                    # 0.5.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -656,4 +670,4 @@ Développé par **Christophe Lesur**, Directeur Général.
 
 ---
 
-*Live Memory v0.4.0 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.5.0 — Mémoire de travail partagée pour agents IA collaboratifs*

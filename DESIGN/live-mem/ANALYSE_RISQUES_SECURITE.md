@@ -1,6 +1,6 @@
 # Analyse des Risques & Sécurité — Live Memory
 
-> **Version** : 0.4.0 | **Date** : 2026-03-03 | **Auteur** : Cloud Temple
+> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple
 
 ---
 
@@ -9,7 +9,7 @@
 | Couche                 | Protection                                                       | Fichier              |
 | ---------------------- | ---------------------------------------------------------------- | -------------------- |
 | **WAF Coraza**         | OWASP CRS (injection SQL, XSS, path traversal, scanners)         | `waf/Caddyfile`      |
-| **Rate Limiting**      | Par IP : MCP 300/min, API 60/min, global 600/min | `waf/Caddyfile`      |
+| **Rate Limiting**      | Par IP : MCP 200/min, API 60/min, global 500/min | `waf/Caddyfile`      |
 | **TLS**                | Let's Encrypt automatique (production)                           | `waf/Caddyfile`      |
 | **Security Headers**   | CSP, X-Frame-Options DENY, HSTS, nosniff, Permissions-Policy     | `waf/Caddyfile`      |
 | **Auth Token**         | Bearer token par client, permissions read/write/admin            | `auth/middleware.py` |
@@ -28,7 +28,7 @@
 | --- | ---------------------------------------- | ----------- | ------------ | ------------------------------------------------------------------------------ | ------- |
 | R1  | **Token admin compromis**                | Moyenne     | 🔴 Critique | Rotation, expiration, audit logs, TLS obligatoire                              | Mitigé  |
 | R2  | **Injection via content des notes**      | Faible      | 🟠 Élevé    | WAF Coraza + le contenu est du texte stocké, jamais exécuté                    | Mitigé  |
-| R3  | **DoS par flood de notes**               | Moyenne     | 🟠 Élevé    | Rate limiting WAF (300 msg/min) + limit de taille (100KB/note)                 | Mitigé  |
+| R3  | **DoS par flood de notes**               | Moyenne     | 🟠 Élevé    | Rate limiting WAF (200 req/min) + limit de taille (100KB/note)                 | Mitigé  |
 | R4  | **Consolidation LLM : prompt injection** | Moyenne     | 🟡 Moyen    | Les notes passent au LLM mais le résultat est du Markdown, pas du code exécuté | Accepté |
 | R5  | **Perte de données S3**                  | Faible      | 🔴 Critique | Backups automatiques + rétention + S3 répliqué Cloud Temple                    | Mitigé  |
 | R6  | **Conflit de consolidation**             | Moyenne     | 🟢 Faible   | asyncio.Lock par espace, retour "conflict" immédiat                            | Résolu  |
@@ -146,4 +146,4 @@ La vérification est faite dans **chaque outil** via `check_access(space_id)`.
 
 ---
 
-*Document mis à jour le 3 mars 2026 — Live Memory v0.4.0*
+*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*
