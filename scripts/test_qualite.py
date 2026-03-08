@@ -153,7 +153,7 @@ async def test_system(admin: MCPClient):
     try:
         r = await admin.call_tool("system_health", {})
         vprint(f"status={r.get('status')}, version={r.get('version')}")
-        if r.get("status") in ("ok", "degraded"):
+        if r.get("status") in ("healthy", "degraded"):
             svc = r.get("services", {})
             s3 = svc.get("s3", {}).get("status", "?")
             llm = svc.get("llmaas", {}).get("status", "?")

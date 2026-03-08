@@ -49,7 +49,7 @@ def show_health_result(result: dict):
     """Affiche le résultat de system_health."""
     status = result.get("status", "?")
     services = result.get("services", {})
-    icon = "✅" if status == "ok" else "⚠️"
+    icon = "✅" if status == "healthy" else "⚠️"
 
     table = Table(title=f"{icon} Health — {result.get('service_name', '?')}", show_header=True)
     table.add_column("Service", style="cyan bold")

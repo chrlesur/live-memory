@@ -51,7 +51,7 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Pile middlewares : `Auth → Logging → StaticFiles → MCP Streamable HTTP`
 
 ### Ajouté
-- **Endpoint `/health`** — Réponse JSON directe (`{"status": "ok", "transport": "streamable-http"}`) pour les healthchecks Docker/WAF. Nécessaire car `streamable_http_app()` ne sert que `/mcp`.
+- **Endpoint `/health`** — Réponse JSON directe (`{"status": "healthy", "transport": "streamable-http"}`) pour les healthchecks Docker/WAF. Nécessaire car `streamable_http_app()` ne sert que `/mcp`.
 - **`HEALTHCHECK` Docker** — `python urllib.request` sur `/health` (remplace le TCP socket)
 - **`test_qualite.py`** — Test de qualité officiel (28 tests couvrant les 7 catégories d'outils : system, admin, space, live, bank, backup, gc, graph). Résultat attendu : 28 PASS, 0 FAIL.
 

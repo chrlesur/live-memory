@@ -279,7 +279,7 @@ async def run_test(live_url, bootstrap_key, graph_url, graph_token, cleanup=True
     try:
         r = await admin.call_tool("system_health", {})
         show_result(r)
-        if r.get("status") in ("ok", "degraded"):
+        if r.get("status") in ("healthy", "degraded"):
             ok("Live Memory accessible")
         else:
             fail("Health check KO")

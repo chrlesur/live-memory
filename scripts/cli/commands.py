@@ -39,7 +39,7 @@ def _run_tool(ctx, tool_name, args, on_success, json_flag=False):
             result = await client.call_tool(tool_name, args)
             if json_flag:
                 show_json(result)
-            elif result.get("status") in ("ok", "created", "deleted", "connected", "disconnected"):
+            elif result.get("status") in ("ok", "healthy", "created", "deleted", "connected", "disconnected"):
                 on_success(result)
             else:
                 show_error(result.get("message", f"Erreur: {result.get('status', '?')}"))

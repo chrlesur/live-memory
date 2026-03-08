@@ -264,7 +264,7 @@ class StaticFilesMiddleware:
         version = version_file.read_text().strip() if version_file.exists() else "dev"
 
         body = json.dumps({
-            "status": "ok",
+            "status": "healthy",
             "service": "live-memory",
             "version": version,
             "transport": "streamable-http",

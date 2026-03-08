@@ -217,7 +217,7 @@ async def run_recette(url, bootstrap_key, cleanup=True):
     try:
         r = await admin.call_tool("system_health", {})
         show_result(r)
-        if r.get("status") in ("ok", "degraded"):
+        if r.get("status") in ("healthy", "degraded"):
             ok("Serveur accessible via WAF")
         else:
             fail(f"Health check KO"); errors += 1

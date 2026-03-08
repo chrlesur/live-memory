@@ -100,7 +100,7 @@ def register(mcp: FastMCP) -> int:
         all_ok = all(s == "ok" for s in service_statuses)
 
         return {
-            "status": "ok" if all_ok else "degraded",
+            "status": "healthy" if all_ok else "degraded",
             "service_name": settings.mcp_server_name,
             "version": _read_version(),
             "uptime_seconds": round(time.monotonic() - _start_time, 1),
