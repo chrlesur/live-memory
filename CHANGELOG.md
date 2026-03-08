@@ -5,6 +5,40 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.5.1] — 2026-03-08
+
+### Ajouté — Descriptions de paramètres MCP pour Cline
+- **57 paramètres documentés** dans les 30 outils MCP avec le pattern `Annotated[type, Field(description="...")]`
+- Chaque paramètre utilisateur affiche désormais sa description dans l'interface Cline (au lieu de "No description")
+- Les descriptions incluent : valeurs possibles, exemples, contraintes, formats attendus
+- Imports `from typing import Annotated` et `from pydantic import Field` ajoutés dans 6 fichiers tools
+- **Script de vérification** `scripts/check_annotated_params.py` pour valider la couverture
+- Pattern appliqué conforme au guide `MCP Tool Parameter Descriptions`
+
+### Amélioré — CLI Shell : messages `--confirm`
+- Les commandes `space delete`, `backup restore`, `backup delete` affichent un message d'aide clair quand `--confirm` est oublié
+- Avant : erreur cryptique du serveur ("confirm=True requis")
+- Après : `⚠️ Suppression de 'xxx' — ajoutez --confirm pour confirmer : space delete xxx --confirm`
+
+### Détail par fichier
+| Fichier     | Tools  | Params documentés |
+| ----------- | ------ | ----------------- |
+| `space.py`  | 7      | 10                |
+| `live.py`   | 3      | 13                |
+| `bank.py`   | 4      | 6                 |
+| `graph.py`  | 4      | 8                 |
+| `admin.py`  | 5      | 12                |
+| `backup.py` | 5      | 8                 |
+| `system.py` | 2      | 0 (aucun param)   |
+| **Total**   | **30** | **57**            |
+
+### Impact
+- Les LLMs connectés via Cline disposent désormais de descriptions complètes pour chaque paramètre
+- Réduction des erreurs de saisie et des retries grâce au guidage contextuel
+- Aucun changement fonctionnel — uniquement des métadonnées de schéma JSON
+
+---
+
 ## [0.5.0] — 2026-03-04
 
 ### Changé — Migration SSE → Streamable HTTP (issue #1)

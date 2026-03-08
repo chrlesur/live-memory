@@ -17,7 +17,10 @@ Chaque outil délègue au SpaceService (core/space.py) après vérification
 des permissions via les helpers auth/context.py.
 """
 
+from typing import Annotated
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 def register(mcp: FastMCP) -> int:
@@ -33,10 +36,10 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def space_create(
-        space_id: str,
-        description: str,
-        rules: str,
-        owner: str = "",
+        space_id: Annotated[str, Field(description="Identifiant unique de l'espace (alphanum + tirets, max 64 chars)")],
+        description: Annotated[str, Field(description="Description courte de l'espace")],
+        rules: Annotated[str, Field(description="Contenu Markdown des rules définissant la structure de la Memory Bank")],
+        owner: Annotated[str, Field(default="", description="Propriétaire de l'espace (optionnel, informatif)")] = "",
     ) -> dict:
         """
         Crée un nouvel espace mémoire avec ses rules.
@@ -102,7 +105,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def space_info(space_id: str) -> dict:
+    async def space_info(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+    ) -> dict:
         """
         Informations détaillées sur un espace mémoire.
 
@@ -128,7 +133,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def space_rules(space_id: str) -> dict:
+    async def space_rules(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+    ) -> dict:
         """
         Lit les rules de l'espace (immuables après création).
 
@@ -155,7 +162,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def space_summary(space_id: str) -> dict:
+    async def space_summary(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+    ) -> dict:
         """
         Synthèse complète d'un espace : rules + bank + stats.
 
@@ -181,7 +190,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def space_export(space_id: str) -> dict:
+    async def space_export(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace à exporter")],
+    ) -> dict:
         """
         Exporte un espace complet en archive tar.gz (base64).
 
@@ -207,7 +218,10 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def space_delete(space_id: str, confirm: bool = False) -> dict:
+    async def space_delete(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace à supprimer")],
+        confirm: Annotated[bool, Field(default=False, description="Doit être True pour confirmer la suppression (sécurité)")] = False,
+    ) -> dict:
         """
         Supprime un espace et TOUTES ses données (irréversible).
 

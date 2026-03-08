@@ -15,7 +15,10 @@ Les backups sont des snapshots complets stockés dans _backups/ sur S3.
 Voir S3_DATA_MODEL.md pour l'arborescence.
 """
 
+from typing import Annotated
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 def register(mcp: FastMCP) -> int:
@@ -30,7 +33,10 @@ def register(mcp: FastMCP) -> int:
     """
 
     @mcp.tool()
-    async def backup_create(space_id: str, description: str = "") -> dict:
+    async def backup_create(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace à sauvegarder")],
+        description: Annotated[str, Field(default="", description="Description du backup (optionnel, ex: 'avant migration')")] = "",
+    ) -> dict:
         """
         Crée un snapshot complet d'un espace sur S3.
 
@@ -61,7 +67,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def backup_list(space_id: str = "") -> dict:
+    async def backup_list(
+        space_id: Annotated[str, Field(default="", description="Filtrer par espace (vide = tous les espaces accessibles)")] = "",
+    ) -> dict:
         """
         Liste les backups disponibles.
 
@@ -93,7 +101,10 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def backup_restore(backup_id: str, confirm: bool = False) -> dict:
+    async def backup_restore(
+        backup_id: Annotated[str, Field(description="Identifiant du backup au format 'space_id/timestamp'")],
+        confirm: Annotated[bool, Field(default=False, description="Doit être True pour confirmer la restauration (sécurité)")] = False,
+    ) -> dict:
         """
         Restaure un espace depuis un backup.
 
@@ -126,7 +137,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def backup_download(backup_id: str) -> dict:
+    async def backup_download(
+        backup_id: Annotated[str, Field(description="Identifiant du backup au format 'space_id/timestamp'")],
+    ) -> dict:
         """
         Télécharge un backup en archive tar.gz (base64).
 
@@ -155,7 +168,10 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def backup_delete(backup_id: str, confirm: bool = False) -> dict:
+    async def backup_delete(
+        backup_id: Annotated[str, Field(description="Identifiant du backup au format 'space_id/timestamp'")],
+        confirm: Annotated[bool, Field(default=False, description="Doit être True pour confirmer la suppression (sécurité, irréversible)")] = False,
+    ) -> dict:
         """
         Supprime un backup (irréversible).
 

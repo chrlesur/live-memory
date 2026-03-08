@@ -15,7 +15,10 @@ Tous les outils admin requièrent la permission "admin".
 Voir AUTH_AND_COLLABORATION.md pour le modèle de tokens.
 """
 
+from typing import Annotated
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 def register(mcp: FastMCP) -> int:
@@ -31,10 +34,10 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def admin_create_token(
-        name: str,
-        permissions: str,
-        space_ids: str = "",
-        expires_in_days: int = 0,
+        name: Annotated[str, Field(description="Nom descriptif du token (ex: 'agent-cline', 'ci-pipeline')")],
+        permissions: Annotated[str, Field(description="Permissions : 'read', 'read,write' ou 'read,write,admin'")],
+        space_ids: Annotated[str, Field(default="", description="Espaces autorisés séparés par virgules (vide = tous les espaces)")] = "",
+        expires_in_days: Annotated[int, Field(default=0, description="Durée de validité en jours (0 = jamais d'expiration)")] = 0,
     ) -> dict:
         """
         Crée un nouveau token d'authentification.
@@ -92,7 +95,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def admin_revoke_token(token_hash: str) -> dict:
+    async def admin_revoke_token(
+        token_hash: Annotated[str, Field(description="Hash tronqué du token à révoquer (obtenu via admin_list_tokens)")],
+    ) -> dict:
         """
         Révoque un token (le rend définitivement inutilisable).
 
@@ -116,9 +121,9 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def admin_update_token(
-        token_hash: str,
-        space_ids: str = "",
-        permissions: str = "",
+        token_hash: Annotated[str, Field(description="Hash tronqué du token à modifier (obtenu via admin_list_tokens)")],
+        space_ids: Annotated[str, Field(default="", description="Nouveaux espaces autorisés séparés par virgules (vide = pas de changement)")] = "",
+        permissions: Annotated[str, Field(default="", description="Nouvelles permissions : 'read', 'read,write' ou 'read,write,admin' (vide = pas de changement)")] = "",
     ) -> dict:
         """
         Met à jour les permissions ou espaces autorisés d'un token.
@@ -149,10 +154,10 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def admin_gc_notes(
-        space_id: str = "",
-        max_age_days: int = 7,
-        confirm: bool = False,
-        delete_only: bool = False,
+        space_id: Annotated[str, Field(default="", description="Espace cible (vide = scanner TOUS les espaces)")] = "",
+        max_age_days: Annotated[int, Field(default=7, description="Seuil d'âge en jours pour considérer une note comme orpheline (défaut 7)")] = 7,
+        confirm: Annotated[bool, Field(default=False, description="False = dry-run (scan seul), True = exécution réelle")] = False,
+        delete_only: Annotated[bool, Field(default=False, description="Si True + confirm=True : supprime SANS consolider (perte de données)")] = False,
     ) -> dict:
         """
         Garbage Collector : consolide ou supprime les notes orphelines.

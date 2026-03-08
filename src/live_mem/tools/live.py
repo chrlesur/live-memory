@@ -23,7 +23,10 @@ Catégories standard :
     issue       — Problème, bug ("Timeout LLM > 60s")
 """
 
+from typing import Annotated
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 def register(mcp: FastMCP) -> int:
@@ -39,11 +42,11 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def live_note(
-        space_id: str,
-        category: str,
-        content: str,
-        agent: str = "",
-        tags: str = "",
+        space_id: Annotated[str, Field(description="Identifiant de l'espace cible")],
+        category: Annotated[str, Field(description="Catégorie : observation|decision|todo|insight|question|progress|issue")],
+        content: Annotated[str, Field(description="Contenu de la note (texte libre)")],
+        agent: Annotated[str, Field(default="", description="Identifiant de l'agent (auto-détecté si vide)")] = "",
+        tags: Annotated[str, Field(default="", description="Tags séparés par des virgules (ex: 'auth,security,urgent')")] = "",
     ) -> dict:
         """
         Écrit une note dans l'espace mémoire.
@@ -87,11 +90,11 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def live_read(
-        space_id: str,
-        limit: int = 50,
-        category: str = "",
-        agent: str = "",
-        since: str = "",
+        space_id: Annotated[str, Field(description="Identifiant de l'espace cible")],
+        limit: Annotated[int, Field(default=50, description="Nombre max de notes à retourner (défaut 50)")] = 50,
+        category: Annotated[str, Field(default="", description="Filtrer par catégorie : observation|decision|todo|insight|question|progress|issue")] = "",
+        agent: Annotated[str, Field(default="", description="Filtrer par identifiant d'agent")] = "",
+        since: Annotated[str, Field(default="", description="Notes après cette date ISO 8601 (ex: '2026-03-08T10:00:00')")] = "",
     ) -> dict:
         """
         Lit les notes live récentes d'un espace.
@@ -129,9 +132,9 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def live_search(
-        space_id: str,
-        query: str,
-        limit: int = 20,
+        space_id: Annotated[str, Field(description="Identifiant de l'espace cible")],
+        query: Annotated[str, Field(description="Texte à chercher dans les notes (case-insensitive)")],
+        limit: Annotated[int, Field(default=20, description="Nombre max de résultats (défaut 20)")] = 20,
     ) -> dict:
         """
         Recherche texte dans les notes live d'un espace.

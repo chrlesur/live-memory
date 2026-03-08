@@ -19,7 +19,10 @@ Le push utilise une synchronisation intelligente :
 Voir core/graph_bridge.py pour la logique métier et le client MCP Streamable HTTP.
 """
 
+from typing import Annotated
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 def register(mcp: FastMCP) -> int:
@@ -35,11 +38,11 @@ def register(mcp: FastMCP) -> int:
 
     @mcp.tool()
     async def graph_connect(
-        space_id: str,
-        url: str,
-        token: str,
-        memory_id: str,
-        ontology: str = "general",
+        space_id: Annotated[str, Field(description="Identifiant du space live-memory à connecter")],
+        url: Annotated[str, Field(description="URL de Graph Memory (ex: 'http://localhost:8080/mcp' ou 'http://localhost:8080')")],
+        token: Annotated[str, Field(description="Bearer token pour l'authentification Graph Memory")],
+        memory_id: Annotated[str, Field(description="Identifiant de la mémoire cible dans Graph Memory")],
+        ontology: Annotated[str, Field(default="general", description="Ontologie pour l'extraction : general|legal|cloud|managed-services|presales")] = "general",
     ) -> dict:
         """
         Connecte un space Live Memory à une instance Graph Memory.
@@ -86,7 +89,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def graph_push(space_id: str) -> dict:
+    async def graph_push(
+        space_id: Annotated[str, Field(description="Identifiant du space live-memory à synchroniser")],
+    ) -> dict:
         """
         Pousse la Memory Bank dans Graph Memory.
 
@@ -124,7 +129,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def graph_status(space_id: str) -> dict:
+    async def graph_status(
+        space_id: Annotated[str, Field(description="Identifiant du space live-memory")],
+    ) -> dict:
         """
         Vérifie le statut de la connexion Graph Memory d'un space.
 
@@ -152,7 +159,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def graph_disconnect(space_id: str) -> dict:
+    async def graph_disconnect(
+        space_id: Annotated[str, Field(description="Identifiant du space live-memory à déconnecter")],
+    ) -> dict:
         """
         Déconnecte un space de Graph Memory.
 

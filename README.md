@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.5.1-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -585,16 +585,17 @@ live-memory/
 │   │   ├── gc.py              #   Garbage Collector
 │   │   ├── locks.py           #   Locks asyncio par espace
 │   │   └── models.py          #   Modèles Pydantic
-│   └── tools/                 # Outils MCP (7 modules)
+│   └── tools/                 # Outils MCP (7 modules, 57 params documentés)
 │       ├── system.py          #   2 outils (health, about)
-│       ├── space.py           #   7 outils (CRUD espaces)
-│       ├── live.py            #   3 outils (notes)
-│       ├── bank.py            #   4 outils (bank + consolidation)
-│       ├── graph.py           #   4 outils (Graph Bridge)
-│       ├── backup.py          #   5 outils (snapshots)
-│       └── admin.py           #   5 outils (tokens + GC)
+│       ├── space.py           #   7 outils (CRUD espaces) — 10 params
+│       ├── live.py            #   3 outils (notes) — 13 params
+│       ├── bank.py            #   4 outils (bank + consolidation) — 6 params
+│       ├── graph.py           #   4 outils (Graph Bridge) — 8 params
+│       ├── backup.py          #   5 outils (snapshots) — 8 params
+│       └── admin.py           #   5 outils (tokens + GC) — 12 params
 ├── scripts/                   # CLI + Shell + Tests
 │   ├── mcp_cli.py             #   Point d'entrée CLI Click
+│   ├── check_annotated_params.py # Vérification des descriptions de paramètres
 │   ├── test_recette.py        #   Test E2E (1 agent)
 │   ├── test_multi_agents.py   #   Test multi-agents (3 agents)
 │   ├── test_gc.py             #   Test Garbage Collector
@@ -607,7 +608,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.5.0
+├── VERSION                    # 0.5.1
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -670,4 +671,4 @@ Développé par **Christophe Lesur**, Directeur Général.
 
 ---
 
-*Live Memory v0.5.0 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.5.1 — Mémoire de travail partagée pour agents IA collaboratifs*

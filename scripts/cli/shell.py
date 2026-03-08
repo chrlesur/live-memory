@@ -171,7 +171,11 @@ async def _handle_space(client, args, json_out):
 
     elif sub == "delete" and len(args) >= 2:
         confirm = "--confirm" in args
-        result = await client.call_tool("space_delete", {"space_id": args[1], "confirm": confirm})
+        if not confirm:
+            show_warning(f"⚠️  Suppression de '{args[1]}' — ajoutez --confirm pour confirmer :")
+            show_warning(f"   space delete {args[1]} --confirm")
+            return
+        result = await client.call_tool("space_delete", {"space_id": args[1], "confirm": True})
         show_success(f"Supprimé") if result.get("status") == "deleted" else show_error(result.get("message", "?"))
 
     else:
@@ -298,12 +302,20 @@ async def _handle_backup(client, args, json_out):
 
     elif sub == "restore" and len(args) >= 2:
         confirm = "--confirm" in args
-        result = await client.call_tool("backup_restore", {"backup_id": args[1], "confirm": confirm})
+        if not confirm:
+            show_warning(f"⚠️  Restauration de '{args[1]}' — ajoutez --confirm pour confirmer :")
+            show_warning(f"   backup restore {args[1]} --confirm")
+            return
+        result = await client.call_tool("backup_restore", {"backup_id": args[1], "confirm": True})
         show_success(f"Restauré") if result.get("status") == "ok" else show_error(result.get("message", "?"))
 
     elif sub == "delete" and len(args) >= 2:
         confirm = "--confirm" in args
-        result = await client.call_tool("backup_delete", {"backup_id": args[1], "confirm": confirm})
+        if not confirm:
+            show_warning(f"⚠️  Suppression de '{args[1]}' — ajoutez --confirm pour confirmer :")
+            show_warning(f"   backup delete {args[1]} --confirm")
+            return
+        result = await client.call_tool("backup_delete", {"backup_id": args[1], "confirm": True})
         show_success(f"Supprimé") if result.get("status") == "deleted" else show_error(result.get("message", "?"))
 
     else:

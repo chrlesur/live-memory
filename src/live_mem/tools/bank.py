@@ -17,7 +17,10 @@ fichiers bank structurés. Un seul consolidate à la fois par espace
 Voir CONSOLIDATION_LLM.md pour le pipeline détaillé.
 """
 
+from typing import Annotated
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 def register(mcp: FastMCP) -> int:
@@ -32,7 +35,10 @@ def register(mcp: FastMCP) -> int:
     """
 
     @mcp.tool()
-    async def bank_read(space_id: str, filename: str) -> dict:
+    async def bank_read(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+        filename: Annotated[str, Field(description="Nom du fichier bank (ex: 'activeContext.md', 'progress.md')")],
+    ) -> dict:
         """
         Lit un fichier spécifique de la Memory Bank.
 
@@ -75,7 +81,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def bank_read_all(space_id: str) -> dict:
+    async def bank_read_all(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+    ) -> dict:
         """
         Lit l'ensemble de la Memory Bank en une seule requête.
 
@@ -129,7 +137,9 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def bank_list(space_id: str) -> dict:
+    async def bank_list(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+    ) -> dict:
         """
         Liste les fichiers de la Memory Bank (sans leur contenu).
 
@@ -180,7 +190,10 @@ def register(mcp: FastMCP) -> int:
             return {"status": "error", "message": str(e)}
 
     @mcp.tool()
-    async def bank_consolidate(space_id: str, agent: str = "") -> dict:
+    async def bank_consolidate(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace à consolider")],
+        agent: Annotated[str, Field(default="", description="Nom de l'agent dont consolider les notes (vide = toutes, admin requis)")] = "",
+    ) -> dict:
         """
         Déclenche la consolidation : le LLM lit les notes live et produit
         les fichiers bank mis à jour selon les rules.
