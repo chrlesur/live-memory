@@ -36,18 +36,18 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank)
 
 ## 2. Positionnement
 
-| Aspect              | graph-memory                   | live-mem                                        |
-| ------------------- | ------------------------------ | ----------------------------------------------- |
-| **Type de mémoire** | Long terme (Knowledge Base)    | Mémoire de travail (Working Memory)             |
-| **Input**           | Documents (PDF, DOCX, MD, CSV) | Notes textuelles des agents                     |
-| **Stockage**        | Neo4j + Qdrant + S3            | **S3 uniquement**                               |
-| **Intelligence**    | Extraction d'entités/relations | Consolidation & synthèse                        |
-| **LLM utilisé**     | gpt-oss:120b (extraction)      | qwen3-2507:235b (consolidation)                 |
-| **Recherche**       | Hybride Graph + RAG vectoriel  | Lecture directe fichiers + recherche texte      |
-| **Agents**          | 1 agent par requête            | **Multi-agents collaboratifs**                  |
-| **Pont**            | —                              | **Graph Bridge** pousse la bank → graph-memory  |
-| **Interface web**   | `/Graph` (visualisation graphe)| **`/live`** (Dashboard + Timeline + Bank)       |
-| **Analogie**        | Une bibliothèque               | Un **tableau blanc partagé** + cahier structuré |
+| Aspect              | graph-memory                    | live-mem                                        |
+| ------------------- | ------------------------------- | ----------------------------------------------- |
+| **Type de mémoire** | Long terme (Knowledge Base)     | Mémoire de travail (Working Memory)             |
+| **Input**           | Documents (PDF, DOCX, MD, CSV)  | Notes textuelles des agents                     |
+| **Stockage**        | Neo4j + Qdrant + S3             | **S3 uniquement**                               |
+| **Intelligence**    | Extraction d'entités/relations  | Consolidation & synthèse                        |
+| **LLM utilisé**     | gpt-oss:120b (extraction)       | qwen3-2507:235b (consolidation)                 |
+| **Recherche**       | Hybride Graph + RAG vectoriel   | Lecture directe fichiers + recherche texte      |
+| **Agents**          | 1 agent par requête             | **Multi-agents collaboratifs**                  |
+| **Pont**            | —                               | **Graph Bridge** pousse la bank → graph-memory  |
+| **Interface web**   | `/Graph` (visualisation graphe) | **`/live`** (Dashboard + Timeline + Bank)       |
+| **Analogie**        | Une bibliothèque                | Un **tableau blanc partagé** + cahier structuré |
 
 ---
 
@@ -115,44 +115,44 @@ live-mem      = Mémoire de TRAVAIL (notes live → LLM → Memory Bank)
 
 ### 3.2 Composants
 
-| Composant                | Rôle                                        | Technologie                              |
-| ------------------------ | ------------------------------------------- | ---------------------------------------- |
-| **WAF**                  | Reverse proxy sécurisé                      | Caddy + Coraza OWASP CRS + Rate Limiting |
-| **MCP Server**           | Serveur MCP Python (30 outils, 7 catégories)| FastMCP + Uvicorn (ASGI)                 |
-| **Storage Service**      | Abstraction S3 (lecture/écriture/listing)   | boto3 hybride SigV2/V4                   |
-| **Consolidator Service** | Synthèse LLM des notes → bank               | AsyncOpenAI (qwen3-2507:235b)            |
-| **Graph Bridge**         | Pont vers Graph Memory (mémoire long terme) | SDK MCP (streamablehttp_client)               |
-| **Auth Middleware**       | Authentification Bearer Token               | ASGI middleware custom                   |
-| **Token Manager**        | Gestion des tokens (CRUD)                   | JSON sur S3 (`_system/tokens.json`)      |
-| **Static Files**         | Interface web /live + API REST              | ASGI middleware (StaticFilesMiddleware)   |
-| **GC Service**           | Nettoyage notes orphelines                  | Scan + consolidation/suppression          |
+| Composant                | Rôle                                         | Technologie                              |
+| ------------------------ | -------------------------------------------- | ---------------------------------------- |
+| **WAF**                  | Reverse proxy sécurisé                       | Caddy + Coraza OWASP CRS + Rate Limiting |
+| **MCP Server**           | Serveur MCP Python (30 outils, 7 catégories) | FastMCP + Uvicorn (ASGI)                 |
+| **Storage Service**      | Abstraction S3 (lecture/écriture/listing)    | boto3 hybride SigV2/V4                   |
+| **Consolidator Service** | Synthèse LLM des notes → bank                | AsyncOpenAI (qwen3-2507:235b)            |
+| **Graph Bridge**         | Pont vers Graph Memory (mémoire long terme)  | SDK MCP (streamablehttp_client)          |
+| **Auth Middleware**      | Authentification Bearer Token                | ASGI middleware custom                   |
+| **Token Manager**        | Gestion des tokens (CRUD)                    | JSON sur S3 (`_system/tokens.json`)      |
+| **Static Files**         | Interface web /live + API REST               | ASGI middleware (StaticFilesMiddleware)  |
+| **GC Service**           | Nettoyage notes orphelines                   | Scan + consolidation/suppression         |
 
 ### 3.3 Services externes
 
-| Service          | Fournisseur                           | Usage                          | Obligatoire |
-| ---------------- | ------------------------------------- | ------------------------------ | ----------- |
-| **S3**           | Cloud Temple (Dell ECS) ou compatible | Stockage de TOUTES les données | ✅          |
-| **LLMaaS**       | Cloud Temple (API OpenAI-compatible)  | Consolidation live → bank      | ✅          |
-| **Graph Memory** | Instance graph-memory (MCP Streamable HTTP)       | Mémoire long terme (graphe)    | ❌ Optionnel |
+| Service          | Fournisseur                                 | Usage                          | Obligatoire  |
+| ---------------- | ------------------------------------------- | ------------------------------ | ------------ |
+| **S3**           | Cloud Temple (Dell ECS) ou compatible       | Stockage de TOUTES les données | ✅           |
+| **LLMaaS**       | Cloud Temple (API OpenAI-compatible)        | Consolidation live → bank      | ✅           |
+| **Graph Memory** | Instance graph-memory (MCP Streamable HTTP) | Mémoire long terme (graphe)    | ❌ Optionnel |
 
 ### 3.4 Stack technique
 
-| Composant        | Technologie             | Rôle                               |
-| ---------------- | ----------------------- | ---------------------------------- |
-| Framework MCP    | `FastMCP` (Python SDK)  | Expose les outils via Streamable HTTP     |
-| Serveur HTTP     | `Uvicorn` (ASGI)        | Sert l'application FastMCP         |
-| Configuration    | `pydantic-settings`     | Variables d'environnement + `.env` |
-| CLI scriptable   | `Click`                 | Commandes en ligne                 |
-| Shell interactif | `prompt_toolkit`        | Autocomplétion, historique         |
-| Affichage        | `Rich`                  | Tables, panels, couleurs, Markdown |
-| Client MCP     | SDK MCP ≥1.8.0          | CLI + Graph Bridge → serveur                      |
-| Auth             | Bearer Token            | Authentification par token         |
-| S3 client        | `boto3`                 | Stockage S3 (hybride SigV2/V4)     |
-| LLM client       | `openai` (AsyncOpenAI)  | Appels LLMaaS                      |
-| Conteneur        | Docker + Docker Compose | Déploiement                        |
-| Reverse proxy    | Caddy + Coraza          | TLS, WAF, Rate Limiting            |
-| Interface web    | HTML/CSS/JS vanilla     | Dashboard, Timeline, Bank Viewer   |
-| Rendu Markdown   | `marked.js` (CDN)       | Rendu bank files dans le navigateur|
+| Composant        | Technologie             | Rôle                                  |
+| ---------------- | ----------------------- | ------------------------------------- |
+| Framework MCP    | `FastMCP` (Python SDK)  | Expose les outils via Streamable HTTP |
+| Serveur HTTP     | `Uvicorn` (ASGI)        | Sert l'application FastMCP            |
+| Configuration    | `pydantic-settings`     | Variables d'environnement + `.env`    |
+| CLI scriptable   | `Click`                 | Commandes en ligne                    |
+| Shell interactif | `prompt_toolkit`        | Autocomplétion, historique            |
+| Affichage        | `Rich`                  | Tables, panels, couleurs, Markdown    |
+| Client MCP       | SDK MCP ≥1.8.0          | CLI + Graph Bridge → serveur          |
+| Auth             | Bearer Token            | Authentification par token            |
+| S3 client        | `boto3`                 | Stockage S3 (hybride SigV2/V4)        |
+| LLM client       | `openai` (AsyncOpenAI)  | Appels LLMaaS                         |
+| Conteneur        | Docker + Docker Compose | Déploiement                           |
+| Reverse proxy    | Caddy + Coraza          | TLS, WAF, Rate Limiting               |
+| Interface web    | HTML/CSS/JS vanilla     | Dashboard, Timeline, Bank Viewer      |
+| Rendu Markdown   | `marked.js` (CDN)       | Rendu bank files dans le navigateur   |
 
 ### 3.5 Pile de middlewares ASGI
 
@@ -341,18 +341,18 @@ Live Memory expose une **interface web SPA** sur `/live` :
 
 ### Ce que live-mem ajoute de nouveau
 
-| Élément                      | Description                                          |
-| ---------------------------- | ---------------------------------------------------- |
-| **Notes live multi-agents**  | Écriture concurrente sans conflit (append-only)      |
-| **Consolidation LLM**        | Synthèse automatique notes → bank via LLM            |
-| **Consolidation par agent**  | `bank_consolidate(agent="...")` filtre les notes      |
-| **Rules dynamiques**         | Structure bank définie par rules, pas hardcodée      |
-| **Bank read_all**            | Lecture complète de la bank en une requête            |
-| **Synthèse résiduelle**      | `_synthesis.md` comme pont entre consolidations      |
-| **Tokens sur S3**            | Plus besoin de Neo4j pour stocker les tokens         |
-| **Graph Bridge**             | Pont MCP Streamable HTTP vers graph-memory (mémoire long terme)  |
-| **Garbage Collector**        | Nettoyage/consolidation des notes orphelines         |
-| **Interface web /live**      | Dashboard + Timeline + Bank Viewer avec auto-refresh |
+| Élément                     | Description                                                     |
+| --------------------------- | --------------------------------------------------------------- |
+| **Notes live multi-agents** | Écriture concurrente sans conflit (append-only)                 |
+| **Consolidation LLM**       | Synthèse automatique notes → bank via LLM                       |
+| **Consolidation par agent** | `bank_consolidate(agent="...")` filtre les notes                |
+| **Rules dynamiques**        | Structure bank définie par rules, pas hardcodée                 |
+| **Bank read_all**           | Lecture complète de la bank en une requête                      |
+| **Synthèse résiduelle**     | `_synthesis.md` comme pont entre consolidations                 |
+| **Tokens sur S3**           | Plus besoin de Neo4j pour stocker les tokens                    |
+| **Graph Bridge**            | Pont MCP Streamable HTTP vers graph-memory (mémoire long terme) |
+| **Garbage Collector**       | Nettoyage/consolidation des notes orphelines                    |
+| **Interface web /live**     | Dashboard + Timeline + Bank Viewer avec auto-refresh            |
 
 ---
 
@@ -370,14 +370,14 @@ Live Memory expose une **interface web SPA** sur `/live` :
 
 ### Réseau
 
-| Port     | Direction | Usage                              |
-| -------- | --------- | ---------------------------------- |
-| **80**   | Entrant   | HTTP → redirect HTTPS (prod)       |
-| **443**  | Entrant   | HTTPS (TLS Let's Encrypt, prod)    |
-| **8080** | Entrant   | HTTP (dev uniquement)              |
-| —        | Sortant   | `api.ai.cloud-temple.com` (LLMaaS) |
-| —        | Sortant   | `*.s3.fr1.cloud-temple.com` (S3)   |
-| —        | Sortant   | Graph Memory (MCP Streamable HTTP, optionnel)  |
+| Port     | Direction | Usage                                         |
+| -------- | --------- | --------------------------------------------- |
+| **80**   | Entrant   | HTTP → redirect HTTPS (prod)                  |
+| **443**  | Entrant   | HTTPS (TLS Let's Encrypt, prod)               |
+| **8080** | Entrant   | HTTP (dev uniquement)                         |
+| —        | Sortant   | `api.ai.cloud-temple.com` (LLMaaS)            |
+| —        | Sortant   | `*.s3.fr1.cloud-temple.com` (S3)              |
+| —        | Sortant   | Graph Memory (MCP Streamable HTTP, optionnel) |
 
 ---
 
