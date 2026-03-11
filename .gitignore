@@ -1,7 +1,6 @@
 # === Dossiers de travail ===
 chantier/
 memory-bank/
-scripts/check_annotated_params.py
 
 # === Python ===
 __pycache__/

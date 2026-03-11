@@ -90,9 +90,23 @@ python scripts/mcp_cli.py bank consolidate mon-projet
 
 ```bash
 # Créer un token (⚠️ le token ne sera affiché qu'une fois !)
+# Permissions possibles : read | read,write | read,write,admin
 python scripts/mcp_cli.py token create agent-cline read,write \
   --space-ids "mon-projet" \
   --expires-in-days 90
+
+# Permissions invalides → rejetées immédiatement
+python scripts/mcp_cli.py token create test all
+# Error: 'all' is not one of 'read', 'read,write', 'read,write,admin'.
+
+# Mettre à jour les permissions d'un token
+python scripts/mcp_cli.py token update sha256:a8c5 --permissions read,write,admin
+
+# Mettre à jour les espaces autorisés d'un token
+python scripts/mcp_cli.py token update sha256:a8c5 --space-ids "projet-a,projet-b"
+
+# Mettre à jour permissions ET espaces
+python scripts/mcp_cli.py token update sha256:a8c5 -p read,write -s "mon-projet"
 
 # Lister les tokens
 python scripts/mcp_cli.py token list
@@ -223,6 +237,8 @@ live-mem> graph push projet           # Pousser la bank dans le graphe
 live-mem> graph status projet         # Stats graphe (docs, entités, relations)
 live-mem> graph disconnect projet     # Déconnecter
 
+live-mem> token create nom read,write # Créer (permissions contraintes)
+live-mem> token update sha256:a8c5 --permissions read,write,admin
 live-mem> token list                  # Lister les tokens
 live-mem> token revoke sha256:...     # Révoquer un token
 live-mem> token delete sha256:...     # Supprimer physiquement
@@ -365,4 +381,4 @@ scripts/
 
 ---
 
-*Live Memory CLI v0.3.0*
+*Live Memory CLI v0.5.3*

@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.5.2-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -413,14 +413,86 @@ Dans les settings MCP de Cline (`cline_mcp_settings.json`) :
 }
 ```
 
-Puis ajoutez des **Custom Instructions** pour que Cline utilise la mémoire automatiquement :
+Puis ajoutez un fichier **`.clinerules/standard.memory.bank.md`** dans votre projet (ou dans les Custom Instructions globales) :
 
+```markdown
+# Cline's Memory Bank — Live Memory MCP
+
+Ma mémoire se réinitialise complètement entre les sessions. Je dépends ENTIÈREMENT
+de la Memory Bank pour comprendre le projet et continuer efficacement.
+
+## 🔌 Connexion
+
+Ma mémoire persistante est gérée par le serveur MCP **Live Memory** (`live-memory`).
+
+- **Space** : `mon-projet`
+- **Agent** : `cline-dev`
+
+## 📖 Au démarrage de CHAQUE tâche (OBLIGATOIRE)
+
+1. Appeler `space_rules("mon-projet")` pour lire les rules (structure de la bank)
+2. Appeler `bank_read_all("mon-projet")` pour charger TOUT le contexte
+3. Lire attentivement le contenu avant de commencer
+4. Identifier le focus actuel dans `activeContext.md`
+
+> ⚠️ Ne JAMAIS commencer à travailler sans avoir lu la bank.
+
+## 📝 Pendant le travail
+
+Écrire des notes fréquentes et atomiques avec `live_note` :
+
+live_note(space_id="mon-projet", category="observation", content="...", agent="cline-dev")
+live_note(space_id="mon-projet", category="decision", content="...", agent="cline-dev")
+live_note(space_id="mon-projet", category="progress", content="...", agent="cline-dev")
+live_note(space_id="mon-projet", category="issue", content="...", agent="cline-dev")
+live_note(space_id="mon-projet", category="todo", content="...", agent="cline-dev")
+live_note(space_id="mon-projet", category="insight", content="...", agent="cline-dev")
+
+**Catégories** :
+- `observation` — Constats factuels, résultats de commandes
+- `decision` — Choix techniques et leur justification
+- `progress` — Avancement, ce qui est terminé
+- `issue` — Problèmes rencontrés, bugs
+- `todo` — Tâches identifiées à faire
+- `insight` — Apprentissages, patterns découverts
+- `question` — Points à clarifier, décisions en suspens
+
+## 🧠 En fin de session
+
+bank_consolidate(space_id="mon-projet", agent="cline-dev")
+
+Le LLM consolidera les notes en mettant à jour les fichiers de la bank selon les rules.
+
+## ⚠️ Règles impératives
+
+1. **Ne JAMAIS écrire directement dans la bank** — seule la consolidation LLM le fait
+2. **Toujours passer `agent="cline-dev"`** dans `live_note` et `bank_consolidate`
+3. **Toujours passer `space_id="mon-projet"`** dans tous les appels
+4. **Écrire des notes atomiques** — 1 note = 1 fait, 1 décision, ou 1 tâche
+5. **Consolider en fin de session** — ne jamais quitter sans consolider
+6. **Lire la bank au démarrage** — ne jamais travailler sans contexte
+
+## 🔄 Quand demander une mise à jour
+
+Si l'utilisateur demande **"update memory bank"** ou **"met à jour la memory bank"** :
+1. Écrire des notes `live_note` résumant l'état actuel du travail
+2. Appeler `bank_consolidate("mon-projet", agent="cline-dev")`
+3. Vérifier le résultat avec `bank_read_all("mon-projet")`
+
+## 📊 Commandes utiles
+
+| Action                          | Commande                                                                           |
+| ------------------------------- | ---------------------------------------------------------------------------------- |
+| Lire tout le contexte           | `bank_read_all("mon-projet")`                                                      |
+| Lire les rules                  | `space_rules("mon-projet")`                                                        |
+| Écrire une note                 | `live_note(space_id="mon-projet", category="...", content="...", agent="cline-dev")`|
+| Consolider                      | `bank_consolidate(space_id="mon-projet", agent="cline-dev")`                       |
+| Voir les notes récentes         | `live_read(space_id="mon-projet")`                                                 |
+| Voir les notes d'un autre agent | `live_read(space_id="mon-projet", agent="claude-review")`                          |
+| Info sur l'espace               | `space_info("mon-projet")`                                                         |
 ```
-Tu as accès à Live Memory (serveur MCP). Space: "mon-projet", agent: "cline-dev".
-- Au démarrage: bank_read_all("mon-projet")
-- Pendant le travail: live_note avec category appropriée
-- En fin de session: bank_consolidate("mon-projet", agent="cline-dev")
-```
+
+> 💡 Remplacez `mon-projet` par votre space_id et `cline-dev` par le nom de votre agent.
 
 ### Avec Claude Desktop
 
@@ -611,7 +683,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.5.2
+├── VERSION                    # 0.6.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -674,4 +746,4 @@ Développé par **Christophe Lesur**, Directeur Général.
 
 ---
 
-*Live Memory v0.5.2 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.6.0 — Mémoire de travail partagée pour agents IA collaboratifs*

@@ -5,6 +5,60 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.6.0] — 2026-03-11
+
+### Changé — Consolidation chirurgicale (édition par section Markdown)
+- **Refonte majeure du consolidateur LLM** — Passage du mode "réécriture complète" au mode "édition chirurgicale". Le LLM produit désormais des **opérations d'édition par section Markdown** (`replace_section`, `append_to_section`, `prepend_to_section`, `add_section`, `delete_section`) au lieu de réécrire les fichiers entiers.
+- **Zéro perte de matière** — Ce qui n'est pas touché explicitement reste intact byte-for-byte. Test A/B validé : l'ancien mode perdait 28 lignes, le nouveau mode n'en perd aucune (hors `replace_section` attendu sur le focus).
+- **Moteur d'édition Markdown** — Nouveau moteur dans `consolidator.py` : `_parse_sections()`, `_find_section_index()` (matching flexible 3 niveaux : exact → sans # → case-insensitive), `_reconstruct_from_sections()`, `_apply_operation()`.
+- **Prompts LLM mis à jour** — Le prompt système et utilisateur demandent des opérations d'édition au format JSON structuré, avec 3 actions par fichier : `edit` (opérations chirurgicales), `create` (nouveau fichier), `rewrite` (fallback justifié).
+- **Rétrocompatibilité** — Si le LLM retourne l'ancien format `bank_files`, conversion automatique via `_convert_legacy_format()`.
+
+### Ajouté
+- **Métriques de consolidation enrichies** — `operations_applied` et `operations_failed` dans le retour de `bank_consolidate` et dans le front-matter de `_synthesis.md`.
+- **77 tests unitaires** — `scripts/test_markdown_engine.py` couvre le moteur d'édition : parsing, reconstruction, idempotence, toutes les opérations, cas limites, scénarios réalistes.
+- **Test E2E consolidation chirurgicale** — `test_surgical_consolidation.py` : 7 phases (création, consolidation create, snapshot, notes supplémentaires, consolidation chirurgicale, comparaison avant/après, nettoyage).
+- **Test A/B** — `run_ab_test.py` : compare production (ancien mode) vs local (nouveau mode) sur les mêmes données.
+
+### Gains mesurés (test A/B)
+| Métrique | Ancien mode (réécriture) | Nouveau mode (chirurgical) |
+|---|---|---|
+| Lignes perdues (progress.md) | 10 | **0** |
+| Lignes perdues (total) | 28 | **1** (replace_section attendu) |
+| Tokens completion LLM | 4850 | **3993** (-18%) |
+| Durée consolidation | 29s | **14.4s** (-50%) |
+
+### Fichiers modifiés
+| Fichier | Changements |
+|---------|------------|
+| `src/live_mem/core/consolidator.py` | Moteur d'édition Markdown + prompts chirurgicaux + rétrocompat |
+| `DESIGN/live-mem/CONSOLIDATION_LLM.md` | Design doc v0.6.0 complet |
+| `scripts/test_markdown_engine.py` | 77 tests unitaires (nouveau) |
+
+---
+
+## [0.5.3] — 2026-03-09
+
+### Corrigé — Validation des permissions tokens
+- **Bug "permissions all"** — Le système acceptait n'importe quel texte comme permission (ex: `"all"`), mais `check_write_permission()` et `check_admin_permission()` ne reconnaissaient que `"read"`, `"write"` et `"admin"` individuellement. Un token créé avec `permissions="all"` était donc inutilisable pour les opérations write/admin.
+- **Validation côté serveur** — `VALID_PERMISSIONS = {"read", "write", "admin"}` défini dans `core/tokens.py`. Les méthodes `create_token()` et `update_token()` rejettent désormais les permissions invalides avec un message explicite.
+- **Validation côté CLI** — `token create` utilise `click.Choice(["read", "read,write", "read,write,admin"])` : plus de texte libre, Click rejette immédiatement les valeurs invalides.
+- **Validation côté shell** — Le shell interactif valide aussi les permissions avant l'appel MCP.
+
+### Ajouté — Commande `token update`
+- **CLI Click** : `token update <hash> --permissions read,write --space-ids "p1,p2"` — permissions contraintes par `click.Choice`
+- **Shell interactif** : `token update sha256:a8c5 --permissions read,write` avec parsing des flags `-p`/`-s`
+- **Autocomplétion** enrichie dans le shell : `--permissions`, `--space-ids`, `read`, `read,write`, `read,write,admin`
+
+### Fichiers modifiés
+| Fichier | Changements |
+|---------|------------|
+| `scripts/cli/commands.py` | `VALID_PERMISSIONS` (click.Choice), `token_create_cmd` contraint, `token_update_cmd` ajouté |
+| `scripts/cli/shell.py` | `_VALID_PERMS`, `_validate_permissions()`, handler `token update`, autocomplétion étendue |
+| `src/live_mem/core/tokens.py` | `VALID_PERMISSIONS`, validation dans `create_token()` et `update_token()` |
+
+---
+
 ## [0.5.2] — 2026-03-09
 
 ### Ajouté — Suppression physique des tokens

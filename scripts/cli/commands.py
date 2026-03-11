@@ -265,19 +265,62 @@ def token_grp():
     pass
 
 
+# Niveaux de permissions valides (du moins au plus permissif)
+VALID_PERMISSIONS = click.Choice(
+    ["read", "read,write", "read,write,admin"],
+    case_sensitive=False,
+)
+
+
 @token_grp.command("create")
 @click.argument("name")
-@click.argument("permissions")
+@click.argument("permissions", type=VALID_PERMISSIONS)
 @click.option("--space-ids", default="", help="Espaces autorisés (virgules)")
 @click.option("--expires-in-days", default=0, help="Expiration (0=jamais)")
 @click.option("--json", "-j", "jflag", is_flag=True)
 @click.pass_context
 def token_create_cmd(ctx, name, permissions, space_ids, expires_in_days, jflag):
-    """Créer un token."""
+    """Créer un token.
+
+    \b
+    Permissions possibles :
+      read             — Lecture seule
+      read,write       — Lecture + écriture (notes, consolidation, espaces)
+      read,write,admin — Accès complet (tokens, suppression, GC)
+    """
     _run_tool(ctx, "admin_create_token", {
         "name": name, "permissions": permissions,
         "space_ids": space_ids, "expires_in_days": expires_in_days,
     }, show_token_created, jflag)
+
+
+@token_grp.command("update")
+@click.argument("token_hash")
+@click.option("--permissions", "-p", type=VALID_PERMISSIONS, default="",
+              help="Nouvelles permissions (read | read,write | read,write,admin)")
+@click.option("--space-ids", "-s", default="",
+              help="Nouveaux espaces autorisés (virgules, vide=tous)")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def token_update_cmd(ctx, token_hash, permissions, space_ids, jflag):
+    """✏️  Mettre à jour un token (permissions et/ou espaces).
+
+    \b
+    Exemples :
+      token update sha256:a8c5 -p read,write
+      token update sha256:a8c5 -s "mon-projet,autre-projet"
+      token update sha256:a8c5 -p read,write,admin -s ""
+    """
+    if not permissions and not space_ids:
+        show_error("Rien à mettre à jour. Utilisez --permissions et/ou --space-ids.")
+        return
+    args = {"token_hash": token_hash}
+    if permissions:
+        args["permissions"] = permissions
+    if space_ids:
+        args["space_ids"] = space_ids
+    _run_tool(ctx, "admin_update_token", args,
+              lambda r: show_success(f"Token mis à jour : {r.get('message', 'OK')}"), jflag)
 
 
 @token_grp.command("list")

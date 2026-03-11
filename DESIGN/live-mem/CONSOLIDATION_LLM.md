@@ -1,12 +1,30 @@
 # Pipeline de Consolidation LLM — Live Memory
 
-> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple
+> **Version** : 0.6.0 | **Date** : 2026-03-10 | **Auteur** : Cloud Temple
 
 ---
 
 ## 1. Vue d'ensemble
 
-La consolidation est le **cœur intelligent** de live-mem. C'est le processus par lequel le MCP utilise un LLM pour synthétiser les notes live en fichiers bank structurés, puis nettoie le live.
+La consolidation est le **cœur intelligent** de live-mem. C'est le processus par lequel le MCP utilise un LLM pour intégrer les notes live dans les fichiers bank structurés, puis nettoie le live.
+
+**Changement majeur v0.6.0** : passage d'un mode **réécriture complète** à un mode **édition chirurgicale**. Le LLM produit désormais des **opérations d'édition par section Markdown** au lieu de réécrire les fichiers entiers. Ce qui n'est pas touché explicitement reste intact byte-for-byte.
+
+### Pourquoi ce changement ?
+
+L'ancien mode demandait au LLM de reproduire intégralement chaque fichier modifié. Or, un LLM ne "copie" jamais fidèlement — il synthétise, résume, reformule. À chaque consolidation, on perdait de la matière (détails supprimés, historique raccourci). C'est le syndrome de la "photocopie de photocopie".
+
+Le nouveau mode résout ce problème : le LLM ne touche que ce qui doit changer. Le reste est préservé mécaniquement.
+
+```
+ANCIEN MODE (v0.1-v0.5)              NOUVEAU MODE (v0.6+)
+─────────────────────                 ─────────────────────
+LLM lit le fichier                    LLM lit le fichier
+LLM réécrit TOUT le fichier           LLM décide des ÉDITIONS
+→ Perte progressive de matière        → Zéro perte de matière
+→ Tokens de sortie élevés             → Tokens de sortie réduits
+→ Pas d'auditabilité                  → Opérations traçables
+```
 
 ```
 AVANT                                    APRÈS
@@ -17,12 +35,12 @@ live/                                    live/
 ├── note_003.md (agent-A, todo)              ↑ Notes d'agent-B non touchées
 ├── ... (42 notes agent-A)
 ├── note_010.md (agent-B, todo)          bank/
-└── note_011.md (agent-B, insight)       ├── projectbrief.md    (créé/MAJ)
-                                         ├── activeContext.md   (MAJ)
-bank/                                    ├── progress.md        (MAJ)
-├── projectbrief.md (existant)           ├── systemPatterns.md  (MAJ)
-├── activeContext.md (existant)          ├── techContext.md      (inchangé)
-├── progress.md (existant)               └── productContext.md  (inchangé)
+└── note_011.md (agent-B, insight)       ├── projectbrief.md    (inchangé ✓)
+                                         ├── activeContext.md   (2 sections éditées)
+bank/                                    ├── progress.md        (1 section appendée)
+├── projectbrief.md (existant)           ├── systemPatterns.md  (inchangé ✓)
+├── activeContext.md (existant)          ├── techContext.md      (inchangé ✓)
+├── progress.md (existant)               └── productContext.md  (inchangé ✓)
 ├── systemPatterns.md (existant)
 ├── techContext.md (existant)            _synthesis.md          (écrasé)
 └── productContext.md (existant)
@@ -34,6 +52,8 @@ _synthesis.md (précédent)
 - Les agents n'écrivent JAMAIS dans la bank. Seul le LLM le fait, guidé par les rules
 - Chaque agent consolide **ses propres notes** (paramètre `agent`)
 - Les notes des autres agents restent intactes dans le live
+- Le LLM produit des **opérations d'édition**, pas des fichiers complets
+- Ce qui n'est pas touché reste **intact byte-for-byte**
 
 ---
 
@@ -82,21 +102,21 @@ async def _collect_inputs(self, space_id: str, agent: str = "") -> dict:
     bank_files = await storage.list_and_get("{space_id}/bank/")
 ```
 
-### Étape 2 — Construire le prompt LLM
+### Étape 2 — Construire le prompt LLM (édition chirurgicale)
 
-Le prompt est en **une seule requête** car on exploite la fenêtre de 100K tokens de qwen3-2507:235b.
+Le prompt demande des **opérations d'édition par section Markdown**, pas des réécritures.
 
 **Budget tokens estimé** :
 
 | Composant | Tokens estimés |
 |---|---|
-| Prompt système | ~500 |
+| Prompt système | ~800 |
 | Rules | ~500-2000 |
 | Synthèse précédente | ~500-1500 |
 | Notes live (42 notes × ~200 tokens) | ~8400 |
 | Fichiers bank existants (6 × ~1000 tokens) | ~6000 |
-| **Total input** | **~17K tokens** |
-| Marge pour la réponse | ~80K tokens |
+| **Total input** | **~18K tokens** |
+| Réponse (opérations d'édition, pas fichiers complets) | **~5-15K tokens** (au lieu de ~30-50K) |
 
 ### Étape 3 — Appel LLM
 
@@ -108,196 +128,308 @@ response = await self._client.chat.completions.create(
     messages=messages,
     max_tokens=self._max_tokens, # 100000
     temperature=self._temperature, # 0.3
-    # Note: response_format non utilisé (pas supporté par tous les endpoints)
-    # Le JSON est parsé manuellement depuis la réponse
 )
 ```
 
 ### Étape 4 — Extraction JSON robuste
 
-La réponse LLM peut contenir du JSON de plusieurs façons :
+Identique à la v0.5 : gère `<think>`, blocs ` ```json `, JSON brut.
+
+### Étape 5 — Application des opérations d'édition
+
+**C'est la nouveauté v0.6.** Au lieu d'écraser les fichiers, on applique les opérations chirurgicalement.
 
 ```python
-def _extract_json(text: str) -> str:
-    # 1. Retirer les blocs <think>...</think> (Qwen thinking mode)
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+for file_edit in llm_output["file_edits"]:
+    if file_edit["action"] == "edit":
+        # Lire le fichier existant
+        existing_content = bank_index[file_edit["filename"]]
+        updated_content = existing_content
 
-    # 2. Chercher un bloc ```json ... ```
-    match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
-    if match: return match.group(1).strip()
+        # Appliquer chaque opération séquentiellement
+        for op in file_edit["operations"]:
+            updated_content = _apply_operation(updated_content, op)
 
-    # 3. Chercher un bloc ``` ... ``` commençant par {
-    # 4. Chercher le premier { ... } (JSON brut)
-    # 5. Fallback : retourner le texte tel quel
+        # Écrire seulement si le contenu a changé
+        if updated_content != existing_content:
+            await storage.put(f"{space_id}/bank/{filename}", updated_content)
+
+    elif file_edit["action"] == "create":
+        # Nouveau fichier → écriture complète
+        await storage.put(f"{space_id}/bank/{filename}", file_edit["content"])
+
+    elif file_edit["action"] == "rewrite":
+        # Réécriture complète (justifiée) → écriture complète
+        await storage.put(f"{space_id}/bank/{filename}", file_edit["content"])
 ```
 
-### Étape 5 — Écriture des résultats
+### Étape 6 — Écriture des résultats
 
 ```python
-# 5a. Écrire chaque fichier bank mis à jour
-for file_entry in llm_output["bank_files"]:
-    await storage.put(f"{space_id}/bank/{filename}", content)
+# 6a. Fichiers bank déjà écrits à l'étape 5
 
-# 5b. Écrire la synthèse résiduelle (avec front-matter)
+# 6b. Écrire la synthèse résiduelle (avec front-matter enrichi)
+synthesis_md = f"""---
+consolidated_at: "{now}"
+notes_processed: {notes_count}
+mode: surgical_edit
+operations_applied: {operations_applied}
+operations_failed: {operations_failed}
+---
+
+{synthesis_content}"""
 await storage.put(f"{space_id}/_synthesis.md", synthesis_md)
 
-# 5c. Mettre à jour _meta.json (compteurs)
+# 6c. Mettre à jour _meta.json (compteurs)
 meta["last_consolidation"] = now
 meta["consolidation_count"] += 1
 meta["total_notes_processed"] += notes_count
-await storage.put_json(f"{space_id}/_meta.json", meta)
 
-# 5d. Supprimer les notes live traitées (EN DERNIER — atomicité)
+# 6d. Supprimer les notes live traitées (EN DERNIER — atomicité)
 await storage.delete_many(notes_keys)
 ```
 
-**Point clé** : seules les notes collectées à l'étape 1 sont supprimées. Les notes arrivées pendant la consolidation restent dans live/ pour la prochaine consolidation.
+---
+
+## 4. Types d'opérations d'édition
+
+### 4.1 `replace_section`
+
+Remplace le contenu d'une section identifiée par son heading Markdown. Le heading lui-même est conservé.
+
+```json
+{
+  "type": "replace_section",
+  "heading": "## Focus Actuel",
+  "content": "Nouveau contenu de la section..."
+}
+```
+
+**Comportement** : Tout ce qui est entre le heading `## Focus Actuel` et le prochain heading de même niveau ou supérieur est remplacé par `content`.
+
+**Cas d'usage** : Mettre à jour le focus actuel dans `activeContext.md`, remplacer le statut d'un problème.
+
+### 4.2 `append_to_section`
+
+Ajoute du contenu **à la fin** d'une section existante. Le contenu existant est intégralement préservé.
+
+```json
+{
+  "type": "append_to_section",
+  "heading": "## Historique des Versions",
+  "content": "- **v0.6.0** (10/03) : Consolidation chirurgicale."
+}
+```
+
+**Comportement** : Le nouveau contenu est ajouté après le contenu existant de la section, avant le prochain heading.
+
+**Cas d'usage** : Ajouter une entrée à l'historique, enrichir une section avec de nouvelles informations.
+
+### 4.3 `prepend_to_section`
+
+Ajoute du contenu **au début** d'une section (après le heading). Le contenu existant est intégralement préservé.
+
+```json
+{
+  "type": "prepend_to_section",
+  "heading": "## Travail Récent",
+  "content": "- Nouveau développement important"
+}
+```
+
+### 4.4 `add_section`
+
+Crée une nouvelle section dans le fichier. Par défaut à la fin, ou après une section spécifique.
+
+```json
+{
+  "type": "add_section",
+  "heading": "## Nouvelle Section",
+  "content": "Contenu de la nouvelle section",
+  "after": "## Section Existante"
+}
+```
+
+**Note** : Si le heading n'a pas de `#`, il est automatiquement complété en `## heading`.
+
+### 4.5 `delete_section`
+
+Supprime une section entière (heading + contenu).
+
+```json
+{
+  "type": "delete_section",
+  "heading": "## Section Obsolète"
+}
+```
 
 ---
 
-## 4. Prompts
+## 5. Moteur d'édition Markdown
 
-### 4.1 Prompt système
+### 5.1 Parsing en sections
+
+Le moteur `_parse_sections()` découpe un fichier Markdown en sections :
+
+```python
+[
+    {"heading": "",                    "level": 0, "content": "préambule..."},
+    {"heading": "# Titre",            "level": 1, "content": "\n..."},
+    {"heading": "## Focus Actuel",    "level": 2, "content": "\nContenu..."},
+    {"heading": "## Travail Récent",  "level": 2, "content": "\n- Item 1\n..."},
+]
+```
+
+Chaque section contient :
+- `heading` : la ligne complète du heading (`## Titre`)
+- `heading_text` : le texte sans les `#` (`Titre`)
+- `level` : le niveau (nombre de `#`, 0 pour le préambule)
+- `content` : tout le texte entre ce heading et le suivant
+
+### 5.2 Recherche flexible
+
+`_find_section_index()` cherche une section avec 3 niveaux de flexibilité :
+
+1. **Correspondance exacte** : `"## Focus Actuel"` → match direct
+2. **Sans les `#`** : `"Focus Actuel"` → trouve `"## Focus Actuel"`
+3. **Case-insensitive** : `"focus actuel"` → trouve `"## Focus Actuel"`
+
+Cette flexibilité est cruciale car le LLM peut varier la façon dont il référence les headings.
+
+### 5.3 Reconstruction
+
+`_reconstruct_from_sections()` recompose le fichier depuis les sections modifiées. Garantie d'idempotence : `reconstruct(parse(content))` préserve toutes les lignes non-vides.
+
+### 5.4 Tests
+
+77 tests unitaires couvrent le moteur :
+- Parsing, recherche, reconstruction
+- Idempotence (parse → reconstruct = identité)
+- Toutes les opérations (replace, append, prepend, add, delete)
+- Opérations chaînées
+- Cas limites (fichier vide, sans heading, sous-niveaux, caractères spéciaux)
+- Scénario réaliste complet
+- Rétrocompatibilité format legacy
+
+```bash
+python scripts/test_markdown_engine.py
+# ✅ TOUS LES TESTS PASSENT : 77/77
+```
+
+---
+
+## 6. Prompts
+
+### 6.1 Prompt système
 
 ```
 Tu es un assistant spécialisé dans la maintenance de Memory Banks pour des projets.
 
-Ta mission : synthétiser des notes de travail en fichiers structurés selon des règles précises.
+Ta mission : intégrer des notes de travail dans des fichiers Markdown structurés 
+via des ÉDITIONS CHIRURGICALES.
 
-Tu reçois :
-1. Les RULES qui définissent la structure de la memory bank
-2. La SYNTHÈSE PRÉCÉDENTE (contexte des consolidations antérieures)
-3. Les NOTES LIVE nouvelles à intégrer
-4. Les FICHIERS BANK actuels à mettre à jour
+## Principe fondamental : ÉDITER, NE PAS RÉÉCRIRE
 
-Tu dois retourner un JSON avec :
-- "bank_files" : liste des fichiers bank mis à jour ou créés
-- "synthesis" : synthèse résiduelle des notes traitées
+⚠️ Tu ne dois JAMAIS renvoyer le contenu complet d'un fichier sauf si :
+- C'est un nouveau fichier à créer (action "create")
+- Le fichier nécessite une restructuration majeure (action "rewrite")
 
-Règles :
-- Respecte STRICTEMENT la structure définie dans les rules
-- Intègre les nouvelles informations des notes live
-- Conserve les informations existantes qui sont toujours pertinentes
-- Supprime les informations rendues obsolètes par les nouvelles notes
-- Chaque fichier bank doit être en Markdown pur (pas de front-matter)
-- La synthèse doit être concise mais couvrir les points clés
-- Si un fichier bank n'a pas besoin de modification, NE L'INCLUS PAS dans bank_files
+Pour les fichiers existants, tu produis des opérations d'édition par SECTION Markdown.
+Tout ce que tu ne touches pas explicitement reste INTACT — c'est le but.
+
+## Types d'opérations disponibles :
+1. replace_section — Remplace le contenu d'une section
+2. append_to_section — Ajoute du contenu à la FIN d'une section
+3. prepend_to_section — Ajoute du contenu au DÉBUT d'une section
+4. add_section — Crée une nouvelle section
+5. delete_section — Supprime une section
+
+## Règles :
+- Préfère append_to_section et replace_section
+- Pour progress.md : TOUJOURS append, JAMAIS supprimer l'historique
+- Les headings doivent correspondre EXACTEMENT à ceux du fichier
+- Si un fichier n'a pas besoin de modification, NE L'INCLUS PAS
 ```
 
-### 4.2 Prompt utilisateur (consolidation)
-
-```
-=== RULES DE L'ESPACE "{space_id}" ===
-{contenu de _rules.md}
-
-=== SYNTHÈSE PRÉCÉDENTE ===
-{contenu de _synthesis.md, ou "Aucune — première consolidation"}
-
-=== NOTES LIVE À INTÉGRER ({count} notes) ===
-
---- Note 1/{count} ---
-{contenu complet de la note (front-matter + corps)}
-
---- Note 2/{count} ---
-...
-
-=== FICHIERS BANK ACTUELS ===
-
---- Fichier: activeContext.md ---
-{contenu}
---- Fin fichier: activeContext.md ---
-
-...
-
-{ou "Aucun fichier bank — première consolidation, créer les fichiers selon les rules."}
-
-=== CONSIGNES ===
-Retourne un JSON avec cette structure exacte :
-{
-  "bank_files": [
-    {
-      "filename": "nom_du_fichier.md",
-      "content": "contenu complet du fichier en Markdown",
-      "action": "created" ou "updated"
-    }
-  ],
-  "synthesis": "Contenu Markdown de la synthèse résiduelle"
-}
-
-IMPORTANT :
-- N'inclus QUE les fichiers qui ont été modifiés ou créés
-- Les fichiers inchangés NE DOIVENT PAS apparaître dans bank_files
-- La synthèse résiduelle doit résumer les notes traitées
-- Le contenu des fichiers bank doit être du Markdown pur
-```
-
-### 4.3 Format de réponse attendu
+### 6.2 Format de réponse attendu
 
 ```json
 {
-  "bank_files": [
+  "file_edits": [
     {
       "filename": "activeContext.md",
-      "content": "# Active Context\n\n## Focus actuel\n...",
-      "action": "updated"
+      "action": "edit",
+      "operations": [
+        {
+          "type": "replace_section",
+          "heading": "## Focus Actuel",
+          "content": "Nouveau contenu de la section..."
+        },
+        {
+          "type": "append_to_section",
+          "heading": "## Travail Récent",
+          "content": "- Nouvel élément ajouté"
+        }
+      ]
     },
     {
-      "filename": "progress.md",
-      "content": "# Progress\n\n## Ce qui fonctionne\n...",
-      "action": "updated"
+      "filename": "nouveau_fichier.md",
+      "action": "create",
+      "content": "# Titre\n\nContenu complet du nouveau fichier..."
+    },
+    {
+      "filename": "fichier_restructure.md",
+      "action": "rewrite",
+      "content": "# Titre\n\nContenu complet réécrit...",
+      "reason": "Restructuration majeure nécessaire car..."
     }
   ],
-  "synthesis": "## Synthèse\n\n### Faits principaux\n- L'auth fonctionne\n..."
+  "synthesis": "Résumé concis des notes traitées..."
 }
 ```
 
----
+### 6.3 Actions par fichier
 
-## 5. Gestion des erreurs
-
-### 5.1 Réponse LLM non-JSON
-
-```python
-for attempt in range(2):  # 1 essai + 1 retry
-    raw_content = response.choices[0].message.content
-    json_str = _extract_json(raw_content)  # Gère <think>, ```json, etc.
-    try:
-        data = json.loads(json_str)
-    except json.JSONDecodeError:
-        if attempt == 0:
-            # Retry avec rappel explicite
-            messages.append({"role": "assistant", "content": raw_content})
-            messages.append({"role": "user", "content": "Retourne UNIQUEMENT un JSON valide."})
-            continue
-        return {"status": "error", "message": "LLM returned invalid JSON after retry"}
-```
-
-### 5.2 Timeout LLM
-
-Le timeout est configurable (`CONSOLIDATION_TIMEOUT`, défaut 600s). Si timeout :
-- Ne PAS supprimer les notes live
-- Retourner l'erreur
-- Les notes seront traitées à la prochaine consolidation
-
-### 5.3 Écriture partielle
-
-Si l'écriture S3 échoue en cours de route :
-- Les fichiers déjà écrits sont OK (cohérents)
-- Les notes live NE SONT PAS supprimées (suppression en dernier)
-- La prochaine consolidation retraitera les notes
-
-**Principe** : on ne supprime les notes live que quand TOUT est écrit avec succès (atomicité logique).
-
-### 5.4 Notes trop nombreuses
-
-Si `live_notes_count > CONSOLIDATION_MAX_NOTES` (défaut 500) :
-- Prendre les 500 notes les plus anciennes
-- Les consolider
-- Les notes restantes attendront la prochaine consolidation
+| Action | Usage | Contenu renvoyé | Quand ? |
+|--------|-------|-----------------|---------|
+| `edit` | Fichier existant | Opérations d'édition | 95% des cas |
+| `create` | Nouveau fichier | Contenu complet | Première consolidation |
+| `rewrite` | Restructuration | Contenu complet + raison | Exceptionnel |
 
 ---
 
-## 6. Configuration LLMaaS
+## 7. Rétrocompatibilité
+
+Si le LLM retourne l'ancien format (`bank_files` au lieu de `file_edits`), une fonction `_convert_legacy_format()` convertit automatiquement :
+
+- `"action": "updated"` → `"action": "rewrite"` (fallback)
+- `"action": "created"` → `"action": "create"`
+
+Ce filet de sécurité garantit que la transition est transparente.
+
+---
+
+## 8. Gestion des erreurs
+
+### 8.1 Réponse LLM non-JSON
+
+Identique à la v0.5 : retry avec rappel explicite.
+
+### 8.2 Section introuvable
+
+Si une opération référence un heading qui n'existe pas dans le fichier :
+- L'opération échoue avec un `ValueError`
+- L'erreur est loggée mais n'arrête pas la consolidation
+- Les autres opérations sont appliquées normalement
+- Le compteur `operations_failed` est incrémenté
+
+### 8.3 Timeout LLM / Écriture partielle
+
+Identique à la v0.5 : atomicité logique, notes supprimées en dernier.
+
+---
+
+## 9. Configuration LLMaaS
 
 ```env
 LLMAAS_API_URL=https://api.ai.cloud-temple.com/v1
@@ -311,78 +443,68 @@ CONSOLIDATION_MAX_NOTES=500
 
 ---
 
-## 7. Métriques
+## 10. Métriques
 
-Chaque consolidation retourne des métriques :
+Chaque consolidation retourne des métriques enrichies :
 
 ```json
 {
   "status": "ok",
   "space_id": "projet-alpha",
   "notes_processed": 42,
-  "bank_files_updated": 3,
-  "bank_files_created": 1,
-  "bank_files_unchanged": 2,
+  "bank_files_updated": 2,
+  "bank_files_created": 0,
+  "bank_files_unchanged": 4,
+  "operations_applied": 5,
+  "operations_failed": 0,
   "synthesis_size": 850,
-  "llm_tokens_used": 45000,
+  "llm_tokens_used": 25000,
   "llm_prompt_tokens": 17000,
-  "llm_completion_tokens": 28000,
-  "duration_seconds": 35.2
+  "llm_completion_tokens": 8000,
+  "duration_seconds": 20.2
 }
 ```
 
-Ces métriques sont aussi loguées sur `stderr` via le module `logging`.
+**Gains attendus** :
+- `llm_completion_tokens` : réduit de ~50-70% (opérations vs fichiers complets)
+- Zéro perte de matière dans les fichiers non touchés
+- `operations_applied/failed` : auditabilité des modifications
 
 ---
 
-## 8. Scénarios
+## 11. Scénarios
 
 ### Scénario 1 : Première consolidation (espace neuf)
 
 ```
 Input: 15 notes agent-A, 0 fichiers bank, pas de synthèse
-→ LLM crée 6 fichiers bank + synthèse
+→ LLM utilise action "create" pour les 6 fichiers bank
 → 15 notes agent-A supprimées
 → Durée : ~20s
 ```
 
-### Scénario 2 : Consolidation par agent (cas typique)
+### Scénario 2 : Consolidation typique (édition chirurgicale)
 
 ```
-Input: 30 notes agent-A, 10 notes agent-B, 6 fichiers bank existants
-→ bank_consolidate(agent="agent-A")
-→ LLM met à jour 3 fichiers (activeContext, progress, techContext)
-→ 30 notes agent-A supprimées
-→ 10 notes agent-B restent dans live/
-→ Durée : ~25s
+Input: 5 notes agent-A, 6 fichiers bank existants
+→ LLM produit 3 file_edits avec action "edit" :
+   - activeContext.md : replace_section "## Focus" + append "## Travail Récent"
+   - progress.md : append "## Historique"
+   - systemPatterns.md : append "## Décisions"
+→ 3 fichiers mis à jour, 3 inchangés (projectbrief, productContext, techContext)
+→ 5 notes agent-A supprimées
+→ Durée : ~15s (moins de tokens en sortie)
 ```
 
-### Scénario 3 : Gros batch (beaucoup de notes)
+### Scénario 3 : Consolidation avec erreur d'opération
 
 ```
-Input: 600 notes agent-A (> CONSOLIDATION_MAX_NOTES=500)
-→ Les 500 plus anciennes sont traitées
-→ 100 notes restent dans live/
-→ L'agent peut relancer bank_consolidate pour les 100 restantes
-```
-
-### Scénario 4 : Pas de notes (rien à faire)
-
-```
-Input: 0 notes (ou 0 notes de l'agent spécifié)
-→ Retour immédiat : {"notes_processed": 0, "message": "No new notes to consolidate"}
-→ Pas d'appel LLM (économie de tokens)
-```
-
-### Scénario 5 : GC — Consolidation forcée
-
-```
-admin_gc_notes(space_id="projet-alpha", max_age_days=7, confirm=True)
-→ Identifie les notes de plus de 7 jours
-→ Les consolide via LLM (avec notice "⚠️ GC consolidation forcée")
-→ Supprime les notes traitées
+Input: 3 notes, 6 fichiers bank
+→ LLM produit 2 edits, dont 1 avec section introuvable
+→ L'opération échouée est loggée, les autres appliquées
+→ Métriques : operations_applied=3, operations_failed=1
 ```
 
 ---
 
-*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*
+*Document mis à jour le 10 mars 2026 — Live Memory v0.6.0 (consolidation chirurgicale)*

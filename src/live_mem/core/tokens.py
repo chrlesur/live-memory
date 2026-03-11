@@ -33,6 +33,9 @@ TOKEN_PREFIX = "lm_"
 # Chemin S3 du registre de tokens
 TOKENS_KEY = "_system/tokens.json"
 
+# Permissions reconnues par le système d'authentification
+VALID_PERMISSIONS = {"read", "write", "admin"}
+
 
 class TokenService:
     """
@@ -70,10 +73,19 @@ class TokenService:
         # Hasher le token
         token_hash = "sha256:" + hashlib.sha256(raw_token.encode()).hexdigest()
 
-        # Parser les permissions
+        # Parser et valider les permissions
         perm_list = [p.strip() for p in permissions.split(",") if p.strip()]
         if not perm_list:
             return {"status": "error", "message": "Permissions requises"}
+        invalid = [p for p in perm_list if p not in VALID_PERMISSIONS]
+        if invalid:
+            return {
+                "status": "error",
+                "message": (
+                    f"Permissions invalides : {invalid}. "
+                    f"Valeurs acceptées : {sorted(VALID_PERMISSIONS)}"
+                ),
+            }
 
         # Parser les space_ids
         sid_list = [s.strip() for s in space_ids.split(",") if s.strip()]
@@ -246,10 +258,23 @@ class TokenService:
         async with get_lock_manager().tokens:
             store = await self._load_store()
             found = False
+            # Valider les permissions avant modification
+            if permissions:
+                perm_list = [p.strip() for p in permissions.split(",") if p.strip()]
+                invalid = [p for p in perm_list if p not in VALID_PERMISSIONS]
+                if invalid:
+                    return {
+                        "status": "error",
+                        "message": (
+                            f"Permissions invalides : {invalid}. "
+                            f"Valeurs acceptées : {sorted(VALID_PERMISSIONS)}"
+                        ),
+                    }
+
             for t in store.tokens:
                 if t.hash.startswith(token_hash) or token_hash.startswith(t.hash[:20]):
                     if permissions:
-                        t.permissions = [p.strip() for p in permissions.split(",")]
+                        t.permissions = [p.strip() for p in permissions.split(",") if p.strip()]
                     if space_ids:
                         t.space_ids = [s.strip() for s in space_ids.split(",")]
                     found = True

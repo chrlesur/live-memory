@@ -46,7 +46,8 @@ SHELL_COMMANDS = {
     "bank read": "Lire un fichier bank (bank read <space> <file>)",
     "bank read-all": "Lire toute la bank (bank read-all <space>)",
     "bank consolidate": "Consolider via LLM (bank consolidate <space>)",
-    "token create": "Créer un token (token create <name> <perms>)",
+    "token create": "Créer un token (token create <name> <read|read,write|read,write,admin>)",
+    "token update": "Modifier un token (token update <hash> --permissions <perms> --space-ids <ids>)",
     "token list": "Lister les tokens",
     "token revoke": "Révoquer un token (token revoke <hash>)",
     "token delete": "Supprimer physiquement un token (token delete <hash>)",
@@ -239,15 +240,57 @@ async def _handle_bank(client, args, json_out):
         show_warning("Usage: bank [list|read|read-all|consolidate] ...")
 
 
+# Permissions valides (partagé avec le handler token)
+_VALID_PERMS = {"read", "read,write", "read,write,admin"}
+
+
+def _validate_permissions(perms: str) -> bool:
+    """Vérifie que les permissions sont valides."""
+    return perms in _VALID_PERMS
+
+
 async def _handle_token(client, args, json_out):
     """Handler pour les commandes token."""
     sub = args[0] if args else ""
 
     if sub == "create" and len(args) >= 3:
+        perms = args[2]
+        if not _validate_permissions(perms):
+            show_error(f"Permissions invalides : '{perms}'")
+            show_warning("Valeurs acceptées : read | read,write | read,write,admin")
+            return
         result = await client.call_tool("admin_create_token", {
-            "name": args[1], "permissions": args[2],
+            "name": args[1], "permissions": perms,
         })
         (show_json if json_out else show_token_created)(result) if result.get("status") == "created" else show_error(result.get("message", "?"))
+
+    elif sub == "update" and len(args) >= 2:
+        token_hash = args[1]
+        # Parser les flags --permissions et --space-ids
+        mcp_args = {"token_hash": token_hash}
+        remaining = args[2:]
+        i = 0
+        while i < len(remaining):
+            flag = remaining[i]
+            if flag in ("--permissions", "-p") and i + 1 < len(remaining):
+                perms = remaining[i + 1]
+                if not _validate_permissions(perms):
+                    show_error(f"Permissions invalides : '{perms}'")
+                    show_warning("Valeurs acceptées : read | read,write | read,write,admin")
+                    return
+                mcp_args["permissions"] = perms
+                i += 2
+            elif flag in ("--space-ids", "-s") and i + 1 < len(remaining):
+                mcp_args["space_ids"] = remaining[i + 1]
+                i += 2
+            else:
+                i += 1
+        if len(mcp_args) <= 1:
+            show_error("Rien à mettre à jour. Utilisez --permissions et/ou --space-ids.")
+            show_warning("Ex: token update sha256:a8c5 --permissions read,write")
+            return
+        result = await client.call_tool("admin_update_token", mcp_args)
+        show_success(result.get("message", "Token mis à jour")) if result.get("status") == "ok" else show_error(result.get("message", "?"))
 
     elif sub == "list":
         result = await client.call_tool("admin_list_tokens", {})
@@ -277,7 +320,7 @@ async def _handle_token(client, args, json_out):
             show_error(result.get("message", "?"))
 
     else:
-        show_warning("Usage: token [create|list|revoke|delete|purge] ...")
+        show_warning("Usage: token [create|update|list|revoke|delete|purge] ...")
 
 
 async def _handle_graph(client, args, json_out):
@@ -385,7 +428,11 @@ async def run_shell(url: str, token: str):
     client = MCPClient(url, token)
 
     # Autocomplétion avec tous les mots-clés
-    words = list(SHELL_COMMANDS.keys()) + ["--json", "--confirm"]
+    words = list(SHELL_COMMANDS.keys()) + [
+        "--json", "--confirm", "--all",
+        "--permissions", "-p", "--space-ids", "-s",
+        "read", "read,write", "read,write,admin",
+    ]
     completer = WordCompleter(words, ignore_case=True)
 
     history_path = Path.home() / ".live_mem_shell_history"

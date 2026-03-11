@@ -1,6 +1,6 @@
 # Architecture — Live Memory MCP Server
 
-> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple  
+> **Version** : 0.6.0 | **Date** : 2026-03-11 | **Auteur** : Cloud Temple  
 > **Projet** : live-mem | **Licence** : Apache 2.0
 
 ---
@@ -232,12 +232,17 @@ Agent → bank_consolidate("projet-alpha", agent="cline-dev")
         │  - Notes live pertinentes                   │
         │  - Contenu actuel de tous les fichiers bank │
         │  - Synthèse précédente                      │
-        │  →  LLM retourne un JSON avec bank_files +  │
-        │     synthesis                                │
+        │  →  LLM retourne un JSON avec des            │
+        │     OPÉRATIONS D'ÉDITION par section          │
+        │     (replace_section, append_to_section,      │
+        │     add_section, delete_section) + synthesis   │
         └─────────────────────────────────────────────┘
                 │
                 ▼
-        5. Écrit les fichiers bank mis à jour sur S3
+        5. Applique les opérations chirurgicalement
+           sur les fichiers bank existants (v0.6.0)
+           → Ce qui n'est pas touché reste intact byte-for-byte
+           → Zéro perte de matière (vs réécriture complète)
         6. Écrit _synthesis.md (résidu pour la prochaine consolidation)
         7. Supprime les notes live traitées (EN DERNIER)
         8. Met à jour _meta.json (compteurs)
@@ -415,4 +420,4 @@ CONSOLIDATION_MAX_NOTES=500      # Max notes par consolidation
 
 ---
 
-*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*
+*Document mis à jour le 11 mars 2026 — Live Memory v0.6.0*
