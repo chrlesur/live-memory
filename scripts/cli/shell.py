@@ -48,7 +48,7 @@ SHELL_COMMANDS = {
     "bank read": "Lire un fichier bank (bank read <space> <file>)",
     "bank read-all": "Lire toute la bank (bank read-all <space>)",
     "bank consolidate": "Consolider via LLM (bank consolidate <space>)",
-    "token create": "Créer un token (token create <name> <read|read,write|read,write,admin>)",
+    "token create": "Créer un token (token create <name> -p <read|read,write|read,write,admin> [--email <email>])",
     "token update": "Modifier un token (token update <hash> --permissions <perms> --space-ids <ids>)",
     "token list": "Lister les tokens",
     "token revoke": "Révoquer un token (token revoke <hash>)",
@@ -275,21 +275,50 @@ async def _handle_token(client, args, json_out):
     """Handler pour les commandes token."""
     sub = args[0] if args else ""
 
-    if sub == "create" and len(args) >= 3:
-        perms = args[2]
+    if sub == "create" and len(args) >= 2:
+        name = args[1]
+        # Parser les flags nommés --permissions/-p, --email/-e, --space-ids/-s
+        perms = ""
+        email = ""
+        space_ids = ""
+        expires = 0
+        remaining = args[2:]
+        i = 0
+        while i < len(remaining):
+            flag = remaining[i]
+            if flag in ("--permissions", "-p") and i + 1 < len(remaining):
+                perms = remaining[i + 1]
+                i += 2
+            elif flag in ("--email", "-e") and i + 1 < len(remaining):
+                email = remaining[i + 1]
+                i += 2
+            elif flag in ("--space-ids", "-s") and i + 1 < len(remaining):
+                space_ids = remaining[i + 1]
+                i += 2
+            elif flag in ("--expires-in-days",) and i + 1 < len(remaining):
+                expires = int(remaining[i + 1])
+                i += 2
+            else:
+                # Rétrocompat : si pas de flag, traiter comme permissions positionnelles
+                if not perms and _validate_permissions(flag):
+                    perms = flag
+                i += 1
+        if not perms:
+            show_error("Permissions requises : --permissions/-p <read|read,write|read,write,admin>")
+            show_warning("Ex: token create KSE -p read,write --email kevin@example.com")
+            return
         if not _validate_permissions(perms):
             show_error(f"Permissions invalides : '{perms}'")
             show_warning("Valeurs acceptées : read | read,write | read,write,admin")
             return
-        # Optionnel: --email ou -e
-        email = ""
-        for i, a in enumerate(args[3:], start=3):
-            if a in ("--email", "-e") and i + 1 < len(args):
-                email = args[i + 1]
-                break
-        result = await client.call_tool("admin_create_token", {
-            "name": args[1], "permissions": perms, "email": email,
-        })
+        mcp_args = {"name": name, "permissions": perms}
+        if email:
+            mcp_args["email"] = email
+        if space_ids:
+            mcp_args["space_ids"] = space_ids
+        if expires:
+            mcp_args["expires_in_days"] = expires
+        result = await client.call_tool("admin_create_token", mcp_args)
         (show_json if json_out else show_token_created)(result) if result.get("status") == "created" else show_error(result.get("message", "?"))
 
     elif sub == "update" and len(args) >= 2:

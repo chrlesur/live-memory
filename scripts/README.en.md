@@ -1,6 +1,6 @@
 # 🖥️ Live Memory CLI, Shell & Tests
 
-> Scriptable CLI, interactive shell and test scripts for Live Memory MCP v0.7.1.
+> Scriptable CLI, interactive shell and test scripts for Live Memory MCP v0.7.2.
 
 ---
 
@@ -29,7 +29,7 @@ python scripts/mcp_cli.py space summary id             # Full summary
 python scripts/mcp_cli.py space export id              # Export as tar.gz
 python scripts/mcp_cli.py live note space obs "msg"    # Write a note
 python scripts/mcp_cli.py bank consolidate space       # LLM consolidation
-python scripts/mcp_cli.py token create name read,write --email u@ex.com  # Create a token
+python scripts/mcp_cli.py token create name -p read,write --email u@ex.com  # Create a token
 python scripts/mcp_cli.py token update sha256:a8c5 --email u@ex.com     # Update a token
 python scripts/mcp_cli.py token list                                     # List tokens
 python scripts/mcp_cli.py graph push space             # Push to Graph Memory
@@ -137,4 +137,4 @@ scripts/
 
 ---
 
-*Live Memory CLI v0.7.1*
+*Live Memory CLI v0.7.2*

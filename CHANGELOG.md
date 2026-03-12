@@ -5,6 +5,35 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.7.2] — 2026-03-12
+
+### Corrigé — Bug CLI `token create` (parsing des options)
+- **`permissions` transformé de `click.argument` (positionnel) en `click.option` (nommé)** — Quand on tapait `token create KSE --email kevin@... --permissions read,write`, Click interprétait `--email` comme la valeur positionnelle de `permissions` → erreur `"Permissions invalides : '--email'"`. Le paramètre est maintenant une option nommée `--permissions/-p` (required), cohérente avec `token update`.
+- **Shell interactif corrigé** — Le handler `token create` du shell parsait `args[2]` en dur comme permissions. Réécrit avec un parsing de flags nommés (`--permissions/-p`, `--email/-e`, `--space-ids/-s`, `--expires-in-days`) — même pattern que `token update`. Rétrocompatibilité préservée : la forme positionnelle `token create KSE read,write` fonctionne encore dans le shell.
+- **Aide enrichie** — Exemples ajoutés dans le help de `token create` (CLI et shell).
+
+### Nouvelle syntaxe
+```bash
+# CLI Click
+token create KSE -p read,write --email kevin@cloud-temple.com
+token create bot-ci --permissions read
+token create admin-ops -p read,write,admin
+
+# Shell interactif (rétrocompat positionnelle)
+token create KSE -p read,write --email kevin@cloud-temple.com
+token create KSE read,write    # ← fonctionne encore
+```
+
+### Fichiers modifiés
+| Fichier | Changements |
+|---------|------------|
+| `scripts/cli/commands.py` | `permissions` : `click.argument` → `click.option("--permissions", "-p", required=True)` |
+| `scripts/cli/shell.py` | Handler `token create` réécrit avec parsing de flags nommés |
+| `scripts/README.md` | Syntaxe `token create` mise à jour (v0.7.2) |
+| `scripts/README.en.md` | Syntaxe `token create` mise à jour (v0.7.2) |
+
+---
+
 ## [0.7.1] — 2026-03-12
 
 ### Sécurité — Alignement des droits avec Graph Memory

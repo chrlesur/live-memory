@@ -291,7 +291,8 @@ VALID_PERMISSIONS = click.Choice(
 
 @token_grp.command("create")
 @click.argument("name")
-@click.argument("permissions", type=VALID_PERMISSIONS)
+@click.option("--permissions", "-p", type=VALID_PERMISSIONS, required=True,
+              help="Permissions : read | read,write | read,write,admin")
 @click.option("--space-ids", default="", help="Espaces autorisés (virgules)")
 @click.option("--expires-in-days", default=0, help="Expiration (0=jamais)")
 @click.option("--email", "-e", default="", help="Email du propriétaire")
@@ -299,6 +300,12 @@ VALID_PERMISSIONS = click.Choice(
 @click.pass_context
 def token_create_cmd(ctx, name, permissions, space_ids, expires_in_days, email, jflag):
     """Créer un token.
+
+    \b
+    Exemples :
+      token create KSE -p read,write --email kevin@example.com
+      token create bot-ci --permissions read
+      token create admin-ops -p read,write,admin
 
     \b
     Permissions possibles :
