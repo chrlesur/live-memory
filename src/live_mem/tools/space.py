@@ -56,8 +56,9 @@ def register(mcp: FastMCP) -> int:
         Returns:
             Détails de l'espace créé
         """
-        from ..auth.context import check_write_permission
+        from ..auth.context import check_write_permission, current_token_info
         from ..core.space import get_space_service
+        from ..core.tokens import get_token_service
 
         try:
             # Vérifier la permission write
@@ -65,12 +66,28 @@ def register(mcp: FastMCP) -> int:
             if write_err:
                 return write_err
 
-            return await get_space_service().create(
+            result = await get_space_service().create(
                 space_id=space_id,
                 description=description,
                 rules=rules,
                 owner=owner,
             )
+
+            # Auto-ajout du space au token (alignement Graph Memory)
+            # Si le token est restreint à certains spaces, on ajoute
+            # automatiquement le nouveau space pour éviter le deadlock UX.
+            if result.get("status") == "created":
+                token_info = current_token_info.get()
+                if token_info and token_info.get("token_hash"):
+                    add_result = await get_token_service().add_space_to_token(
+                        token_hash=token_info["token_hash"],
+                        space_id=space_id,
+                    )
+                    if add_result.get("status") == "ok":
+                        result["token_auto_updated"] = True
+                        result["token_message"] = add_result["message"]
+
+            return result
         except Exception as e:
             return {"status": "error", "message": str(e)}
 

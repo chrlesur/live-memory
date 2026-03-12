@@ -96,7 +96,22 @@ def register(mcp: FastMCP) -> int:
                 if access_err:
                     return access_err
 
-            return await get_backup_service().list_backups(space_id)
+            result = await get_backup_service().list_backups(space_id)
+
+            # Filtrage par space_ids du token (alignement Graph Memory v0.7.0)
+            # Un client ne doit voir que les backups des spaces autorisés.
+            # Admin bypass (allowed_resources vide = accès à tous).
+            allowed = token_info.get("allowed_resources", [])
+            if allowed and result.get("status") == "ok" and not space_id:
+                filtered = [
+                    b for b in result.get("backups", [])
+                    if b.get("space_id", b.get("backup_id", "").split("/")[0]) in allowed
+                ]
+                result["backups"] = filtered
+                result["total"] = len(filtered)
+                result["filtered_by_token"] = True
+
+            return result
         except Exception as e:
             return {"status": "error", "message": str(e)}
 

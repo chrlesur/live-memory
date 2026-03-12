@@ -38,6 +38,8 @@ SHELL_COMMANDS = {
     "space list": "Lister les espaces",
     "space info": "Infos d'un espace (space info <id>)",
     "space rules": "Rules d'un espace (space rules <id>)",
+    "space summary": "Synthèse complète (space summary <id>)",
+    "space export": "Exporter en tar.gz (space export <id>)",
     "space delete": "Supprimer un espace (space delete <id> --confirm)",
     "live note": "Écrire une note (live note <space> <cat> <contenu>)",
     "live read": "Lire les notes (live read <space>)",
@@ -59,7 +61,9 @@ SHELL_COMMANDS = {
     "backup create": "Créer un backup (backup create <space>)",
     "backup list": "Lister les backups",
     "backup restore": "Restaurer (backup restore <id> --confirm)",
+    "backup download": "Télécharger un backup (backup download <id>)",
     "backup delete": "Supprimer (backup delete <id> --confirm)",
+    "gc": "Garbage Collector (gc [--space-id <id>] [--confirm])",
     "quit": "Quitter",
 }
 
@@ -142,6 +146,16 @@ async def dispatch(client: MCPClient, user_input: str, json_output: bool):
         else:
             await _handle_backup(client, args, json_output)
 
+    elif cmd == "gc":
+        gc_args = {"space_id": "", "max_age_days": 7, "confirm": False, "delete_only": False}
+        for i, a in enumerate(args):
+            if a == "--space-id" and i + 1 < len(args): gc_args["space_id"] = args[i + 1]
+            elif a == "--max-age-days" and i + 1 < len(args): gc_args["max_age_days"] = int(args[i + 1])
+            elif a == "--confirm": gc_args["confirm"] = True
+            elif a == "--delete-only": gc_args["delete_only"] = True
+        result = await client.call_tool("admin_gc_notes", gc_args)
+        show_json(result)
+
     else:
         show_warning(f"Commande inconnue: '{user_input}'. Tapez 'help'.")
 
@@ -172,6 +186,14 @@ async def _handle_space(client, args, json_out):
         result = await client.call_tool("space_rules", {"space_id": args[1]})
         (show_json if json_out else show_rules)(result) if result.get("status") == "ok" else show_error(result.get("message", "?"))
 
+    elif sub == "summary" and len(args) >= 2:
+        result = await client.call_tool("space_summary", {"space_id": args[1]})
+        show_json(result)
+
+    elif sub == "export" and len(args) >= 2:
+        result = await client.call_tool("space_export", {"space_id": args[1]})
+        show_json(result)
+
     elif sub == "delete" and len(args) >= 2:
         confirm = "--confirm" in args
         if not confirm:
@@ -182,7 +204,7 @@ async def _handle_space(client, args, json_out):
         show_success(f"Supprimé") if result.get("status") == "deleted" else show_error(result.get("message", "?"))
 
     else:
-        show_warning("Usage: space [create|list|info|rules|delete] ...")
+        show_warning("Usage: space [create|list|info|rules|summary|export|delete] ...")
 
 
 async def _handle_live(client, args, json_out):
@@ -373,6 +395,10 @@ async def _handle_backup(client, args, json_out):
         result = await client.call_tool("backup_restore", {"backup_id": args[1], "confirm": True})
         show_success(f"Restauré") if result.get("status") == "ok" else show_error(result.get("message", "?"))
 
+    elif sub == "download" and len(args) >= 2:
+        result = await client.call_tool("backup_download", {"backup_id": args[1]})
+        show_json(result)
+
     elif sub == "delete" and len(args) >= 2:
         confirm = "--confirm" in args
         if not confirm:
@@ -383,7 +409,7 @@ async def _handle_backup(client, args, json_out):
         show_success(f"Supprimé") if result.get("status") == "deleted" else show_error(result.get("message", "?"))
 
     else:
-        show_warning("Usage: backup [create|list|restore|delete] ...")
+        show_warning("Usage: backup [create|list|restore|download|delete] ...")
 
 
 # =============================================================================

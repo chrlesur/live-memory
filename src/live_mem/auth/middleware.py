@@ -116,9 +116,11 @@ class AuthMiddleware:
         # Mode 1 : Bootstrap key → admin total
         if token == settings.admin_bootstrap_key:
             return {
+                "type": "bootstrap",
                 "client_name": "admin",
                 "permissions": ["admin", "read", "write"],
                 "allowed_resources": [],  # vide = accès total
+                "token_hash": None,  # bootstrap n'a pas de hash S3
             }
 
         # Mode 2 : Validation via TokenService (tokens stockés sur S3)

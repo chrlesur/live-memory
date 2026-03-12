@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -598,31 +598,37 @@ Autocomplete, history, Rich display. See [scripts/README.md](scripts/README.md) 
 
 ## 🧪 Tests
 
-5 E2E test scripts, all with `--step` (step-by-step) and `--no-cleanup`.
+Unified test script with **4 selectable suites** via `--suite`:
 
 ```bash
 docker compose up -d   # Prerequisite
 
-# 1. Recipe: 1 agent, 12 notes, consolidation → 6 bank files
-python scripts/test_recette.py
+# All suites (44 tests, ~60s)
+python scripts/test_recette.py --url http://localhost:8080
 
-# 2. Multi-agents: 3 agents collaborating
-python scripts/test_multi_agents.py
+# Single suite
+python scripts/test_recette.py --suite recette     # Agent pipeline (7 tests)
+python scripts/test_recette.py --suite isolation    # Multi-tenant (18 tests)
+python scripts/test_recette.py --suite qualite      # MCP tools (19 tests)
 
-# 3. Garbage Collector
-python scripts/test_gc.py
-
-# 4. Graph Bridge: link to Graph Memory
-python scripts/test_graph_bridge.py \
-  --graph-url https://graph-mem.mcp.cloud-temple.app \
+# Graph Memory suite (optional, requires running graph-memory)
+python scripts/test_recette.py --suite graph \
+  --graph-url http://host.docker.internal:8080 \
   --graph-token your_token
 
-# 5. Quality: 28 tests covering all 7 tool categories
-python scripts/test_qualite.py
+# List available suites
+python scripts/test_recette.py --list
 
-# Step-by-step mode (Enter to proceed)
-python scripts/test_recette.py --step --no-cleanup
+# Step-by-step + verbose
+python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 ```
+
+| Suite | Tests | Description |
+|---|---|---|
+| `recette` | 7 | Full pipeline: token → notes → LLM consolidation → bank |
+| `isolation` | 18 | Multi-tenant isolation v0.7.0: cross-space access, backup filtering, auto-add token |
+| `qualite` | 19 | 32 MCP tools testing: system, admin, space, live, bank, backup, GC |
+| `graph` | ~8 | Graph Memory bridge: connect, push, status, disconnect (optional) |
 
 ---
 
@@ -685,7 +691,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.6.0
+├── VERSION                    # 0.7.0
 ├── CHANGELOG.md
 └── FAQ.md
 ```
@@ -732,8 +738,8 @@ Apache License 2.0
 
 **Cloud Temple** — [cloud-temple.com](https://www.cloud-temple.com)
 
-Developed by **Christophe Lesur**, CEO.
+Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.6.0 — Shared working memory for collaborative AI agents*
+*Live Memory v0.7.0 — Shared working memory for collaborative AI agents*

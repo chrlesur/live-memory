@@ -37,10 +37,12 @@ class MCPClient:
     - Appel d'outils avec parsing des résultats
     """
 
-    def __init__(self, base_url: str, token: str = "", timeout: float = 300.0):
+    def __init__(self, base_url: str, token: str = "", timeout: float = 300.0,
+                 call_delay: float = 0.0):
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
+        self.call_delay = call_delay  # Délai entre appels (secondes)
 
     @property
     def headers(self) -> dict:
@@ -74,6 +76,10 @@ class MCPClient:
             Le résultat de l'outil (dict)
         """
         mcp_url = f"{self.base_url}/mcp"
+
+        # Délai entre appels pour éviter les TaskGroup errors (sessions trop rapides)
+        if self.call_delay > 0:
+            await asyncio.sleep(self.call_delay)
 
         try:
             async with streamablehttp_client(

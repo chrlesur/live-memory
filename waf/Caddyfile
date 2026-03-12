@@ -92,7 +92,7 @@
 				path /mcp*
 			}
 			key {remote_host}
-			events 200
+			events 600
 			window 1m
 		}
 		zone api {
@@ -100,12 +100,12 @@
 				path /api/*
 			}
 			key {remote_host}
-			events 60
+			events 120
 			window 1m
 		}
 		zone global {
 			key {remote_host}
-			events 500
+			events 1500
 			window 1m
 		}
 	}

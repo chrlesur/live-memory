@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -577,33 +577,39 @@ Autocomplétion, historique, affichage Rich. Voir [scripts/README.md](scripts/RE
 
 ## 🧪 Tests
 
-5 scripts de test E2E, tous avec `--step` (pas-à-pas) et `--no-cleanup`.
+Script de recette **unifié** avec 4 suites sélectionnables par `--suite` :
 
 ```bash
 docker compose up -d   # Prérequis
 
-# 1. Recette : 1 agent, 12 notes, consolidation → 6 fichiers bank
-python scripts/test_recette.py
+# Toutes les suites (44 tests, ~60s)
+python scripts/test_recette.py --url http://localhost:8080
 
-# 2. Multi-agents : 3 agents collaborent
-python scripts/test_multi_agents.py
+# Juste une suite
+python scripts/test_recette.py --suite recette     # Pipeline agent (7 tests)
+python scripts/test_recette.py --suite isolation    # Multi-tenant (18 tests)
+python scripts/test_recette.py --suite qualite      # Outils MCP (19 tests)
 
-# 3. Garbage Collector
-python scripts/test_gc.py
-
-# 4. Graph Bridge : pont vers Graph Memory
-python scripts/test_graph_bridge.py \
-  --graph-url https://graph-mem.mcp.cloud-temple.app \
+# Suite Graph Memory (optionnelle, nécessite graph-memory en cours)
+python scripts/test_recette.py --suite graph \
+  --graph-url http://host.docker.internal:8080 \
   --graph-token votre_token
 
-# 5. Qualité : 28 tests couvrant les 7 catégories d'outils
-python scripts/test_qualite.py
+# Lister les suites disponibles
+python scripts/test_recette.py --list
 
-# Mode pas-à-pas (Entrée pour avancer)
-python scripts/test_recette.py --step --no-cleanup
+# Mode pas-à-pas + verbose
+python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 ```
 
-Voir [scripts/README.md](scripts/README.md) pour le détail de chaque test.
+| Suite | Tests | Description |
+|---|---|---|
+| `recette` | 7 | Pipeline complet : token → notes → consolidation LLM → bank |
+| `isolation` | 18 | Isolation multi-tenant v0.7.0 : accès inter-espaces, filtrage backups, auto-ajout token |
+| `qualite` | 19 | Tests des 32 outils MCP : system, admin, space, live, bank, backup, GC |
+| `graph` | ~8 | Pont Graph Memory : connect, push, status, disconnect (optionnel) |
+
+Voir [scripts/README.md](scripts/README.md) pour le détail complet.
 
 ---
 
@@ -668,14 +674,9 @@ live-memory/
 │       ├── backup.py          #   5 outils (snapshots) — 8 params
 │       └── admin.py           #   7 outils (tokens + GC + purge) — 14 params
 ├── scripts/                   # CLI + Shell + Tests
-│   ├── mcp_cli.py             #   Point d'entrée CLI Click
-│   ├── delete_tokens.py       #   Utilitaire gestion tokens à distance
-│   ├── check_annotated_params.py # Vérification des descriptions de paramètres
-│   ├── test_recette.py        #   Test E2E (1 agent)
-│   ├── test_multi_agents.py   #   Test multi-agents (3 agents)
-│   ├── test_gc.py             #   Test Garbage Collector
-│   ├── test_graph_bridge.py   #   Test Graph Bridge
-│   └── cli/                   #   Package CLI
+│   ├── mcp_cli.py             #   Point d'entrée CLI Click + Shell
+│   ├── test_recette.py        #   🧪 Script de recette unifié (4 suites, ~50 tests)
+│   └── cli/                   #   Package CLI (client, commands, display, shell)
 ├── waf/                       # WAF Caddy + Coraza
 │   ├── Caddyfile              #   Config WAF + rate limiting
 │   └── Dockerfile             #   Image Caddy + Coraza
@@ -683,7 +684,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.6.0
+├── VERSION                    # 0.7.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -742,8 +743,8 @@ Apache License 2.0
 
 **Cloud Temple** — [cloud-temple.com](https://www.cloud-temple.com)
 
-Développé par **Christophe Lesur**, Directeur Général.
+Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.6.0 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.7.0 — Mémoire de travail partagée pour agents IA collaboratifs*

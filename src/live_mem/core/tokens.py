@@ -287,6 +287,52 @@ class TokenService:
 
         return {"status": "ok", "message": "Token mis à jour"}
 
+    async def add_space_to_token(self, token_hash: str, space_id: str) -> dict:
+        """
+        Ajoute un space_id à la liste des espaces autorisés d'un token.
+
+        Appelé automatiquement par space_create quand un client restreint
+        crée un nouvel espace. Sans cet ajout, le client ne pourrait pas
+        accéder au space qu'il vient de créer (deadlock UX).
+
+        Si le token a space_ids=[] (accès à tous), cette méthode ne fait rien
+        car le token a déjà accès à tous les espaces.
+
+        Args:
+            token_hash: Hash SHA-256 du token courant
+            space_id: ID du space à ajouter
+
+        Returns:
+            {"status": "ok"} ou {"status": "skipped"} ou erreur
+        """
+        async with get_lock_manager().tokens:
+            store = await self._load_store()
+
+            for t in store.tokens:
+                if t.hash == token_hash:
+                    # Si le token a déjà accès à tous les espaces, rien à faire
+                    if not t.space_ids:
+                        return {
+                            "status": "skipped",
+                            "message": "Token has access to all spaces",
+                        }
+                    # Si le space est déjà dans la liste, rien à faire
+                    if space_id in t.space_ids:
+                        return {
+                            "status": "skipped",
+                            "message": f"Space '{space_id}' already in token",
+                        }
+                    # Ajouter le space
+                    t.space_ids.append(space_id)
+                    await self._save_store(store)
+                    return {
+                        "status": "ok",
+                        "message": f"Space '{space_id}' added to token",
+                        "space_ids": t.space_ids,
+                    }
+
+            return {"status": "not_found", "message": "Token not found"}
+
     async def validate_token(self, raw_token: str) -> Optional[dict]:
         """
         Valide un token brut et retourne ses infos.
@@ -328,9 +374,11 @@ class TokenService:
                 pass  # last_used_at est informatif, pas critique
 
             return {
+                "type": "token",
                 "client_name": t.name,
                 "permissions": t.permissions,
                 "allowed_resources": t.space_ids,
+                "token_hash": t.hash,
             }
 
         return None  # Token inconnu

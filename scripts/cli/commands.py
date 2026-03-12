@@ -139,6 +139,23 @@ def space_rules_cmd(ctx, space_id, jflag):
     _run_tool(ctx, "space_rules", {"space_id": space_id}, show_rules, jflag)
 
 
+@space_grp.command("summary")
+@click.argument("space_id")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def space_summary_cmd(ctx, space_id, jflag):
+    """📋 Synthèse complète (rules + bank + stats)."""
+    _run_tool(ctx, "space_summary", {"space_id": space_id}, show_json, jflag)
+
+
+@space_grp.command("export")
+@click.argument("space_id")
+@click.pass_context
+def space_export_cmd(ctx, space_id):
+    """📦 Exporter un espace en tar.gz (base64)."""
+    _run_tool(ctx, "space_export", {"space_id": space_id}, show_json, True)
+
+
 @space_grp.command("delete")
 @click.argument("space_id")
 @click.option("--confirm", is_flag=True, help="Confirmer la suppression")
@@ -408,6 +425,14 @@ def backup_restore_cmd(ctx, backup_id, confirm):
               lambda r: show_success(f"Restauré: {r.get('files_restored', 0)} fichiers"))
 
 
+@backup_grp.command("download")
+@click.argument("backup_id")
+@click.pass_context
+def backup_download_cmd(ctx, backup_id):
+    """📥 Télécharger un backup (tar.gz base64)."""
+    _run_tool(ctx, "backup_download", {"backup_id": backup_id}, show_json, True)
+
+
 @backup_grp.command("delete")
 @click.argument("backup_id")
 @click.option("--confirm", is_flag=True)
@@ -471,6 +496,25 @@ def graph_status_cmd(ctx, space_id, jflag):
 def graph_disconnect_cmd(ctx, space_id, jflag):
     """🔌 Déconnecter un space de Graph Memory."""
     _run_tool(ctx, "graph_disconnect", {"space_id": space_id}, show_graph_disconnected, jflag)
+
+
+# ─────────────────────────────────────────────────────────────
+# GC (Garbage Collector)
+# ─────────────────────────────────────────────────────────────
+
+@cli.command("gc")
+@click.option("--space-id", default="", help="Espace cible (vide = tous)")
+@click.option("--max-age-days", default=7, help="Seuil en jours (défaut 7)")
+@click.option("--confirm", is_flag=True, help="Exécuter réellement (sinon dry-run)")
+@click.option("--delete-only", is_flag=True, help="Supprimer sans consolider")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def gc_cmd(ctx, space_id, max_age_days, confirm, delete_only, jflag):
+    """🧹 Garbage Collector : nettoyer les notes orphelines."""
+    _run_tool(ctx, "admin_gc_notes", {
+        "space_id": space_id, "max_age_days": max_age_days,
+        "confirm": confirm, "delete_only": delete_only,
+    }, show_json, jflag)
 
 
 # ─────────────────────────────────────────────────────────────
