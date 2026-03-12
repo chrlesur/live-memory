@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Script de recette global — Live Memory v0.7.0
+Script de recette global — Live Memory v0.7.1
 
 Script unifié avec sélection de suites par ligne de commande.
 
 Suites disponibles :
     - recette    : Pipeline complet (agent → notes → consolidation → bank)
-    - isolation  : Tests d'isolation multi-tenant (v0.7.0)
+    - isolation  : Tests d'isolation multi-tenant (v0.7.1)
     - qualite    : Tests de qualité (32 outils MCP)
 
 Usage :
@@ -245,7 +245,7 @@ async def suite_recette(admin: MCPClient, url: str, do_cleanup: bool):
 
 # ═══════════════════════════════════════════════════════════════
 #
-#  SUITE : ISOLATION — Tests multi-tenant v0.7.0
+#  SUITE : ISOLATION — Tests multi-tenant v0.7.1
 #
 # ═══════════════════════════════════════════════════════════════
 
@@ -261,7 +261,7 @@ Contexte de test.
 
 async def suite_isolation(admin: MCPClient, url: str, do_cleanup: bool):
     """Suite ISOLATION : tests d'isolation multi-tenant."""
-    header("🔒 SUITE : ISOLATION — Multi-tenant v0.7.0")
+    header("🔒 SUITE : ISOLATION — Multi-tenant v0.7.1")
 
     token_a = token_b = token_ro = ""
 
@@ -380,7 +380,7 @@ async def suite_isolation(admin: MCPClient, url: str, do_cleanup: bool):
     pause("Isolation OK → Backup filtering")
 
     # ── BACKUP FILTERING ──────────────────────────────
-    section("Isolation 3/6 — Filtrage backup_list (v0.7.0)")
+    section("Isolation 3/6 — Filtrage backup_list (v0.7.1)")
 
     try:
         r = await ca.call_tool("backup_list", {})
@@ -443,7 +443,7 @@ async def suite_isolation(admin: MCPClient, url: str, do_cleanup: bool):
     pause("Read-only OK → Auto-ajout")
 
     # ── AUTO-AJOUT ────────────────────────────────────
-    section("Isolation 5/6 — Auto-ajout space au token (v0.7.0)")
+    section("Isolation 5/6 — Auto-ajout space au token (v0.7.1)")
 
     try:
         r = await ca.call_tool("space_create", {
@@ -831,7 +831,7 @@ async def suite_graph(admin: MCPClient, url: str, do_cleanup: bool,
 
 SUITES = {
     "recette": ("🧪 Pipeline agent complet (notes → consolidation → bank)", suite_recette),
-    "isolation": ("🔒 Tests d'isolation multi-tenant v0.7.0", suite_isolation),
+    "isolation": ("🔒 Tests d'isolation multi-tenant v0.7.1", suite_isolation),
     "qualite": ("🧪 Tests de qualité des outils MCP", suite_qualite),
     "graph": ("🌉 Pont vers Graph Memory (nécessite --graph-url et --graph-token)", suite_graph),
 }
@@ -846,7 +846,7 @@ async def run_all(url: str, bootstrap_key: str, suites_to_run: list, do_cleanup:
     admin = MCPClient(base_url=url, token=bootstrap_key, timeout=600, call_delay=CALL_DELAY)
     t0 = time.monotonic()
 
-    header(f"🏗️  RECETTE GLOBALE — Live Memory v0.7.0")
+    header(f"🏗️  RECETTE GLOBALE — Live Memory v0.7.1")
     print(f"  {C}Serveur :{Z} {url}")
     print(f"  {C}Suites  :{Z} {', '.join(suites_to_run)}")
 
@@ -903,7 +903,7 @@ def main():
     global VERBOSE, STEP_MODE
 
     ap = argparse.ArgumentParser(
-        description="Recette globale — Live Memory v0.7.0",
+        description="Recette globale — Live Memory v0.7.1",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemples :

@@ -135,7 +135,7 @@ class TokenService:
         tokens_list = []
         for t in store.tokens:
             tokens_list.append({
-                "hash": t.hash[:20] + "...",  # Tronqué pour la sécurité
+                "hash": t.hash,  # Hash complet pour identification
                 "name": t.name,
                 "email": t.email,
                 "permissions": t.permissions,

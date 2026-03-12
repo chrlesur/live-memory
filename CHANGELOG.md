@@ -5,7 +5,7 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
-## [0.7.0] — 2026-03-12
+## [0.7.1] — 2026-03-12
 
 ### Sécurité — Alignement des droits avec Graph Memory
 - **Auto-ajout du space au token à la création** — Quand un client restreint (`space_ids: ["A"]`) crée un space "B", le space B est automatiquement ajouté à ses `space_ids` dans `tokens.json`. Élimine le deadlock UX où le client ne pouvait pas accéder au space qu'il venait de créer. Nouvelle méthode `TokenService.add_space_to_token()`.

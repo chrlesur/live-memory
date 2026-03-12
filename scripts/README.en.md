@@ -1,6 +1,6 @@
 # 🖥️ Live Memory CLI, Shell & Tests
 
-> Scriptable CLI, interactive shell and test scripts for Live Memory MCP v0.7.0.
+> Scriptable CLI, interactive shell and test scripts for Live Memory MCP v0.7.1.
 
 ---
 
@@ -29,7 +29,9 @@ python scripts/mcp_cli.py space summary id             # Full summary
 python scripts/mcp_cli.py space export id              # Export as tar.gz
 python scripts/mcp_cli.py live note space obs "msg"    # Write a note
 python scripts/mcp_cli.py bank consolidate space       # LLM consolidation
-python scripts/mcp_cli.py token create name read,write # Create a token
+python scripts/mcp_cli.py token create name read,write --email u@ex.com  # Create a token
+python scripts/mcp_cli.py token update sha256:a8c5 --email u@ex.com     # Update a token
+python scripts/mcp_cli.py token list                                     # List tokens
 python scripts/mcp_cli.py graph push space             # Push to Graph Memory
 python scripts/mcp_cli.py backup create space          # Create a backup
 python scripts/mcp_cli.py backup download id           # Download a backup
@@ -84,7 +86,7 @@ python scripts/test_recette.py --no-cleanup                  # Keep test data
 | Suite | Tests | Description |
 |---|---|---|
 | `recette` | 7 | Full pipeline: token → space → notes → LLM consolidation → bank → cleanup |
-| `isolation` | 18 | Multi-tenant isolation v0.7.0: cross-space access denied, backup_list filtering, read-only enforcement, auto-add space to token |
+| `isolation` | 18 | Multi-tenant isolation v0.7.1: cross-space access denied, backup_list filtering, read-only enforcement, auto-add space to token |
 | `qualite` | 19 | MCP tools testing: system, admin, space, live, bank, backup, GC |
 | `graph` | ~8 | Graph Memory bridge: connect, push, status, disconnect (optional, requires `--graph-url` and `--graph-token`) |
 
@@ -135,4 +137,4 @@ scripts/
 
 ---
 
-*Live Memory CLI v0.7.0*
+*Live Memory CLI v0.7.1*

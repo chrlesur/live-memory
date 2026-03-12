@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.7.1-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -626,7 +626,7 @@ python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 | Suite | Tests | Description |
 |---|---|---|
 | `recette` | 7 | Full pipeline: token → notes → LLM consolidation → bank |
-| `isolation` | 18 | Multi-tenant isolation v0.7.0: cross-space access, backup filtering, auto-add token |
+| `isolation` | 18 | Multi-tenant isolation v0.7.1: cross-space access, backup filtering, auto-add token |
 | `qualite` | 19 | 32 MCP tools testing: system, admin, space, live, bank, backup, GC |
 | `graph` | ~8 | Graph Memory bridge: connect, push, status, disconnect (optional) |
 
@@ -742,4 +742,4 @@ Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.7.0 — Shared working memory for collaborative AI agents*
+*Live Memory v0.7.1 — Shared working memory for collaborative AI agents*
