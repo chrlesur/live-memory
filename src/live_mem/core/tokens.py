@@ -51,6 +51,7 @@ class TokenService:
         permissions: str,
         space_ids: str = "",
         expires_in_days: int = 0,
+        email: str = "",
     ) -> dict:
         """
         Crée un nouveau token d'authentification.
@@ -100,6 +101,7 @@ class TokenService:
         token_info = TokenInfo(
             hash=token_hash,
             name=name,
+            email=email,
             permissions=perm_list,
             space_ids=sid_list,
             created_at=now.isoformat(),
@@ -135,6 +137,7 @@ class TokenService:
             tokens_list.append({
                 "hash": t.hash[:20] + "...",  # Tronqué pour la sécurité
                 "name": t.name,
+                "email": t.email,
                 "permissions": t.permissions,
                 "space_ids": t.space_ids,
                 "created_at": t.created_at,
@@ -243,6 +246,7 @@ class TokenService:
         token_hash: str,
         space_ids: str = "",
         permissions: str = "",
+        email: str = "",
     ) -> dict:
         """
         Met à jour les permissions ou space_ids d'un token.
@@ -277,6 +281,8 @@ class TokenService:
                         t.permissions = [p.strip() for p in permissions.split(",") if p.strip()]
                     if space_ids:
                         t.space_ids = [s.strip() for s in space_ids.split(",")]
+                    if email:
+                        t.email = email
                     found = True
                     break
 

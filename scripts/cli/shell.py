@@ -281,8 +281,14 @@ async def _handle_token(client, args, json_out):
             show_error(f"Permissions invalides : '{perms}'")
             show_warning("Valeurs acceptées : read | read,write | read,write,admin")
             return
+        # Optionnel: --email ou -e
+        email = ""
+        for i, a in enumerate(args[3:], start=3):
+            if a in ("--email", "-e") and i + 1 < len(args):
+                email = args[i + 1]
+                break
         result = await client.call_tool("admin_create_token", {
-            "name": args[1], "permissions": perms,
+            "name": args[1], "permissions": perms, "email": email,
         })
         (show_json if json_out else show_token_created)(result) if result.get("status") == "created" else show_error(result.get("message", "?"))
 
@@ -305,11 +311,14 @@ async def _handle_token(client, args, json_out):
             elif flag in ("--space-ids", "-s") and i + 1 < len(remaining):
                 mcp_args["space_ids"] = remaining[i + 1]
                 i += 2
+            elif flag in ("--email", "-e") and i + 1 < len(remaining):
+                mcp_args["email"] = remaining[i + 1]
+                i += 2
             else:
                 i += 1
         if len(mcp_args) <= 1:
-            show_error("Rien à mettre à jour. Utilisez --permissions et/ou --space-ids.")
-            show_warning("Ex: token update sha256:a8c5 --permissions read,write")
+            show_error("Rien à mettre à jour. Utilisez --permissions, --space-ids et/ou --email.")
+            show_warning("Ex: token update sha256:a8c5 --email user@example.com")
             return
         result = await client.call_tool("admin_update_token", mcp_args)
         show_success(result.get("message", "Token mis à jour")) if result.get("status") == "ok" else show_error(result.get("message", "?"))

@@ -109,6 +109,7 @@ class TokenInfo(BaseModel):
     """
     hash: str = ""                  # "sha256:{hex}" — identifiant unique
     name: str = ""                  # Nom descriptif (ex: "agent-cline")
+    email: str = ""                 # Email du propriétaire (optionnel, traçabilité)
     permissions: list[str] = Field(default_factory=list)  # ["read"], ["read", "write"], etc.
     space_ids: list[str] = Field(default_factory=list)    # [] = tous les espaces
     created_at: str = ""            # ISO 8601

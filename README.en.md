@@ -319,7 +319,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 | Tool                  | Parameters                                               | Description                                                                  |
 | --------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `admin_create_token`  | `name`, `permissions`, `space_ids?`, `expires_in_days?`  | Creates a token (⚠️ displayed only once). Permissions: read, write, admin    |
+| `admin_create_token`  | `name`, `permissions`, `space_ids?`, `expires_in_days?`, `email?` | Creates a token (⚠️ displayed only once). Permissions: read, write, admin. Optional email for traceability |
 | `admin_list_tokens`   | —                                                        | Lists active tokens                                                          |
 | `admin_revoke_token`  | `token_hash`                                             | Revokes a token (makes it unusable)                                          |
 | `admin_delete_token`  | `token_hash`                                             | Physically deletes a token from the registry (⚠️ irreversible)               |

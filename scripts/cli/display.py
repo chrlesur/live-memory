@@ -239,18 +239,34 @@ def show_token_list(result: dict):
     tokens = result.get("tokens", [])
     table = Table(title=f"🔑 {result.get('total', 0)} tokens", show_header=True)
     table.add_column("Nom", style="cyan bold")
+    table.add_column("Email")
+    table.add_column("Hash (ID)", style="dim")
     table.add_column("Permissions")
     table.add_column("Espaces")
-    table.add_column("Révoqué")
-    table.add_column("Hash", style="dim")
+    table.add_column("Créé le")
+    table.add_column("Expire")
     for t in tokens:
-        revoked = "❌ oui" if t.get("revoked") else "✅ non"
+        created = t.get("created_at", "?")[:10] if t.get("created_at") else "?"
+        expires = t.get("expires_at") or None
+        expires = expires[:10] if expires else "jamais"
+        spaces = ", ".join(t.get("space_ids", [])) or "toutes"
+        name = t.get("name", "?")
+        if t.get("revoked"):
+            name = f"[dim strikethrough]{name}[/dim strikethrough]"
+        # Hash complet (sans troncature supplémentaire)
+        token_hash = t.get("hash", "?")
         table.add_row(
-            t.get("name", "?"), ", ".join(t.get("permissions", [])),
-            ", ".join(t.get("space_ids", [])) or "tous",
-            revoked, t.get("hash", "?")[:15],
+            name,
+            t.get("email", "") or "",
+            token_hash,
+            ", ".join(t.get("permissions", [])),
+            spaces,
+            created,
+            expires,
         )
     console.print(table)
+    # Aide contextuelle
+    console.print("[dim]💡 Copiez le Hash pour : token revoke <hash> · token update <hash> --email user@example.com · token delete <hash>[/dim]")
 
 
 # =============================================================================

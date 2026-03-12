@@ -294,9 +294,10 @@ VALID_PERMISSIONS = click.Choice(
 @click.argument("permissions", type=VALID_PERMISSIONS)
 @click.option("--space-ids", default="", help="Espaces autorisés (virgules)")
 @click.option("--expires-in-days", default=0, help="Expiration (0=jamais)")
+@click.option("--email", "-e", default="", help="Email du propriétaire")
 @click.option("--json", "-j", "jflag", is_flag=True)
 @click.pass_context
-def token_create_cmd(ctx, name, permissions, space_ids, expires_in_days, jflag):
+def token_create_cmd(ctx, name, permissions, space_ids, expires_in_days, email, jflag):
     """Créer un token.
 
     \b
@@ -308,6 +309,7 @@ def token_create_cmd(ctx, name, permissions, space_ids, expires_in_days, jflag):
     _run_tool(ctx, "admin_create_token", {
         "name": name, "permissions": permissions,
         "space_ids": space_ids, "expires_in_days": expires_in_days,
+        "email": email,
     }, show_token_created, jflag)
 
 
@@ -317,25 +319,28 @@ def token_create_cmd(ctx, name, permissions, space_ids, expires_in_days, jflag):
               help="Nouvelles permissions (read | read,write | read,write,admin)")
 @click.option("--space-ids", "-s", default="",
               help="Nouveaux espaces autorisés (virgules, vide=tous)")
+@click.option("--email", "-e", default="", help="Email du propriétaire")
 @click.option("--json", "-j", "jflag", is_flag=True)
 @click.pass_context
-def token_update_cmd(ctx, token_hash, permissions, space_ids, jflag):
-    """✏️  Mettre à jour un token (permissions et/ou espaces).
+def token_update_cmd(ctx, token_hash, permissions, space_ids, email, jflag):
+    """✏️  Mettre à jour un token (permissions, espaces, email).
 
     \b
     Exemples :
+      token update sha256:a8c5 --email user@example.com
       token update sha256:a8c5 -p read,write
-      token update sha256:a8c5 -s "mon-projet,autre-projet"
-      token update sha256:a8c5 -p read,write,admin -s ""
+      token update sha256:a8c5 -s "mon-projet" -e user@example.com
     """
-    if not permissions and not space_ids:
-        show_error("Rien à mettre à jour. Utilisez --permissions et/ou --space-ids.")
+    if not permissions and not space_ids and not email:
+        show_error("Rien à mettre à jour. Utilisez --permissions, --space-ids et/ou --email.")
         return
     args = {"token_hash": token_hash}
     if permissions:
         args["permissions"] = permissions
     if space_ids:
         args["space_ids"] = space_ids
+    if email:
+        args["email"] = email
     _run_tool(ctx, "admin_update_token", args,
               lambda r: show_success(f"Token mis à jour : {r.get('message', 'OK')}"), jflag)
 

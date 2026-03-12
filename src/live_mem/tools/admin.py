@@ -40,6 +40,7 @@ def register(mcp: FastMCP) -> int:
         permissions: Annotated[str, Field(description="Permissions : 'read', 'read,write' ou 'read,write,admin'")],
         space_ids: Annotated[str, Field(default="", description="Espaces autorisés séparés par virgules (vide = tous les espaces)")] = "",
         expires_in_days: Annotated[int, Field(default=0, description="Durée de validité en jours (0 = jamais d'expiration)")] = 0,
+        email: Annotated[str, Field(default="", description="Email du propriétaire (optionnel, traçabilité)")] = "",
     ) -> dict:
         """
         Crée un nouveau token d'authentification.
@@ -69,6 +70,7 @@ def register(mcp: FastMCP) -> int:
                 permissions=permissions,
                 space_ids=space_ids,
                 expires_in_days=expires_in_days,
+                email=email,
             )
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -188,6 +190,7 @@ def register(mcp: FastMCP) -> int:
         token_hash: Annotated[str, Field(description="Hash tronqué du token à modifier (obtenu via admin_list_tokens)")],
         space_ids: Annotated[str, Field(default="", description="Nouveaux espaces autorisés séparés par virgules (vide = pas de changement)")] = "",
         permissions: Annotated[str, Field(default="", description="Nouvelles permissions : 'read', 'read,write' ou 'read,write,admin' (vide = pas de changement)")] = "",
+        email: Annotated[str, Field(default="", description="Nouvel email du propriétaire (vide = pas de changement)")] = "",
     ) -> dict:
         """
         Met à jour les permissions ou espaces autorisés d'un token.
@@ -212,6 +215,7 @@ def register(mcp: FastMCP) -> int:
                 token_hash=token_hash,
                 space_ids=space_ids,
                 permissions=permissions,
+                email=email,
             )
         except Exception as e:
             return {"status": "error", "message": str(e)}
