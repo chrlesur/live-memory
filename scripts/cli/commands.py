@@ -121,6 +121,34 @@ def space_create_cmd(ctx, space_id, description, rules_file, rules, owner, jflag
     }, show_space_created, jflag)
 
 
+@space_grp.command("update")
+@click.argument("space_id")
+@click.option("--description", "-d", default="", help="Nouvelle description (vide = pas de changement)")
+@click.option("--owner", "-o", default="", help="Nouveau propriétaire (vide = pas de changement)")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def space_update_cmd(ctx, space_id, description, owner, jflag):
+    """Met à jour la description et/ou le owner d'un espace.
+
+    Les rules restent immuables.
+
+    Exemples :
+      space update mon-projet -d "Nouvelle description"
+      space update mon-projet -o "Nouveau Owner"
+      space update mon-projet -d "Desc" -o "Owner"
+    """
+    args = {"space_id": space_id}
+    if description:
+        args["description"] = description
+    if owner:
+        args["owner"] = owner
+    if not description and not owner:
+        show_error("Rien à modifier. Utilisez --description/-d et/ou --owner/-o.")
+        return
+    from .display import show_space_updated
+    _run_tool(ctx, "space_update", args, show_space_updated, jflag)
+
+
 @space_grp.command("list")
 @click.option("--json", "-j", "jflag", is_flag=True)
 @click.pass_context

@@ -5,6 +5,33 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.7.7] — 2026-03-13
+
+### Ajouté — Outil MCP `space_update` (modification des métadonnées d'un espace)
+- **Nouvel outil `space_update`** ✏️ (write) — Permet de modifier la description et/ou le owner d'un espace existant. Les rules restent immuables.
+- **34 outils MCP** (était 33) — catégorie Space passe de 7 à 8 outils.
+- Méthode `SpaceService.update()` dans `core/space.py` : GET + PUT sur `_meta.json`, modification sélective des champs fournis.
+
+### Amélioré — CLI et affichage
+- **CLI Click** : `space update <id> -d "desc" [-o "owner"]` avec aide contextuelle et exemples
+- **Shell interactif** : `space update <id> -d "desc" [-o "owner"]` avec parsing flags nommés, autocomplétion, aide contextuelle
+- **Affichage Rich** : `show_space_updated()` — panel avec champs modifiés
+- **Colonne Owner dans `space list`** — le champ owner était absent de l'affichage (corrigé)
+- **Owner dans `space info`** — ajouté entre Description et Notes live
+- **Test de recette** : `space_update` ajouté dans la suite qualité (21/21 PASS)
+
+### Fichiers modifiés
+| Fichier                       | Changements                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
+| `src/live_mem/core/space.py`  | Nouvelle méthode `update()` — modification sélective de `_meta.json`                       |
+| `src/live_mem/tools/space.py` | Nouvel outil `space_update` — check_access + check_write, 3 params annotés                 |
+| `scripts/cli/commands.py`     | Commande Click `space update` avec `--description/-d`, `--owner/-o`                        |
+| `scripts/cli/shell.py`        | Handler `space update` + SHELL_COMMANDS + import `show_space_updated`                      |
+| `scripts/cli/display.py`      | `show_space_updated()`, colonne Owner dans `show_space_list`, Owner dans `show_space_info` |
+| `scripts/test_recette.py`     | Test `space_update` ajouté dans la suite qualité                                           |
+
+---
+
 ## [0.7.6] — 2026-03-13
 
 ### Ajouté — Répertoire `RULES/` : modèles de rules pour la création d'espaces
@@ -16,13 +43,13 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - **Section "Pourquoi les Rules sont critiques"** dans le README — Explique que les rules sont **injectées mot pour mot dans le prompt du LLM consolidateur** à chaque `bank_consolidate`. Ce n'est pas de la documentation passive — c'est un contrat direct avec le modèle.
 
 ### Fichiers ajoutés/modifiés
-| Fichier | Changements |
-|---------|------------|
-| `RULES/standard.memory.bank.md` | Nouveau — Copie des rules du space `live-mem` (general purpose) |
-| `RULES/medical.memory.bank.md` | Nouveau — Modèle médical adapté pour Live Memory (7+2 fichiers, fiabilité absolue, mapping consolidation) |
+| Fichier                         | Changements                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `RULES/standard.memory.bank.md` | Nouveau — Copie des rules du space `live-mem` (general purpose)                                               |
+| `RULES/medical.memory.bank.md`  | Nouveau — Modèle médical adapté pour Live Memory (7+2 fichiers, fiabilité absolue, mapping consolidation)     |
 | `RULES/presales.memory.bank.md` | Nouveau — Modèle avant-vente B2B (5+N fichiers, personas dynamiques, gestion contradictions, tracking visuel) |
-| `RULES/README.md` | Nouveau — Documentation des templates de rules avec explication du lien rules → LLM |
-| `README.md` | Badge version 0.7.6, mention du répertoire RULES/ dans la structure du projet |
+| `RULES/README.md`               | Nouveau — Documentation des templates de rules avec explication du lien rules → LLM                           |
+| `README.md`                     | Badge version 0.7.6, mention du répertoire RULES/ dans la structure du projet                                 |
 
 ---
 
@@ -36,12 +63,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - **33 outils MCP** (était 32) — catégorie System passe de 2 à 3 outils
 
 ### Fichiers modifiés
-| Fichier | Changements |
-|---------|------------|
+| Fichier                        | Changements                                                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/live_mem/tools/system.py` | Nouvel outil `system_whoami` — lit le contextvar `current_token_info`, enrichit avec les métadonnées du TokenService pour les tokens S3 |
-| `scripts/cli/display.py` | `show_whoami_result()` — panel Rich avec identité, type, droits, espaces, métadonnées token |
-| `scripts/cli/commands.py` | Commande Click `whoami` au niveau racine (comme `health` et `about`) |
-| `scripts/cli/shell.py` | Commande `whoami` dans le dispatcher, SHELL_COMMANDS et autocomplétion |
+| `scripts/cli/display.py`       | `show_whoami_result()` — panel Rich avec identité, type, droits, espaces, métadonnées token                                             |
+| `scripts/cli/commands.py`      | Commande Click `whoami` au niveau racine (comme `health` et `about`)                                                                    |
+| `scripts/cli/shell.py`         | Commande `whoami` dans le dispatcher, SHELL_COMMANDS et autocomplétion                                                                  |
 
 ---
 
@@ -64,14 +91,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Simplification de la documentation : les utilisateurs sont invités à copier le template directement dans leurs Custom Instructions globales, sans mentionner explicitement l'arborescence locale `.clinerules`.
 
 ### Fichiers modifiés
-| Fichier | Changements |
-|---------|------------|
-| `src/live_mem/tools/bank.py` | Logique d'autorisation `bank_consolidate` réécrite — auto-set `agent=caller` pour les tokens write non-admin |
-| `GUIDE_INTEGRATION_CLINE.md` | Mise à jour v0.7.4, template simplifié sans agent, focus sur les Custom Instructions |
-| `README.md` et `README.en.md` | Nettoyage des exemples, lien direct vers le guide d'intégration |
-| `scripts/test_recette.py` | +3 tests isolation (consolidation permissions) : write+agent='', write+agent=autre, reader consolidate |
-| `DESIGN/live-mem/AUTH_AND_COLLABORATION.md` | Matrice permissions mise à jour (bank_consolidate auto-détection) |
-| `DESIGN/live-mem/MCP_TOOLS_SPEC.md` | Spec bank_consolidate mise à jour (v0.7.4 agent auto-détecté) |
+| Fichier                                     | Changements                                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `src/live_mem/tools/bank.py`                | Logique d'autorisation `bank_consolidate` réécrite — auto-set `agent=caller` pour les tokens write non-admin |
+| `GUIDE_INTEGRATION_CLINE.md`                | Mise à jour v0.7.4, template simplifié sans agent, focus sur les Custom Instructions                         |
+| `README.md` et `README.en.md`               | Nettoyage des exemples, lien direct vers le guide d'intégration                                              |
+| `scripts/test_recette.py`                   | +3 tests isolation (consolidation permissions) : write+agent='', write+agent=autre, reader consolidate       |
+| `DESIGN/live-mem/AUTH_AND_COLLABORATION.md` | Matrice permissions mise à jour (bank_consolidate auto-détection)                                            |
+| `DESIGN/live-mem/MCP_TOOLS_SPEC.md`         | Spec bank_consolidate mise à jour (v0.7.4 agent auto-détecté)                                                |
 
 ---
 
@@ -85,12 +112,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - **Guide d'intégration Cline** (`GUIDE_INTEGRATION_CLINE.md`) mis à jour pour référencer le nouveau format template avec `{SPACE}/{AGENT}`.
 
 ### Fichiers modifiés
-| Fichier | Changements |
-|---------|------------|
-| `.clinerules/standard.memory.bank.md` | Refactoring complet : config centralisée + placeholders `{SPACE}`/`{AGENT}` |
-| `GUIDE_INTEGRATION_CLINE.md` | Version 0.7.3, section Custom Instructions mise à jour avec le template `{SPACE}/{AGENT}` |
-| `README.md` | Badge version 0.7.3 |
-| `README.en.md` | Badge version 0.7.3 |
+| Fichier                               | Changements                                                                               |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `.clinerules/standard.memory.bank.md` | Refactoring complet : config centralisée + placeholders `{SPACE}`/`{AGENT}`               |
+| `GUIDE_INTEGRATION_CLINE.md`          | Version 0.7.3, section Custom Instructions mise à jour avec le template `{SPACE}/{AGENT}` |
+| `README.md`                           | Badge version 0.7.3                                                                       |
+| `README.en.md`                        | Badge version 0.7.3                                                                       |
 
 ---
 
@@ -114,12 +141,12 @@ token create KSE read,write    # ← fonctionne encore
 ```
 
 ### Fichiers modifiés
-| Fichier | Changements |
-|---------|------------|
+| Fichier                   | Changements                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------- |
 | `scripts/cli/commands.py` | `permissions` : `click.argument` → `click.option("--permissions", "-p", required=True)` |
-| `scripts/cli/shell.py` | Handler `token create` réécrit avec parsing de flags nommés |
-| `scripts/README.md` | Syntaxe `token create` mise à jour (v0.7.2) |
-| `scripts/README.en.md` | Syntaxe `token create` mise à jour (v0.7.2) |
+| `scripts/cli/shell.py`    | Handler `token create` réécrit avec parsing de flags nommés                             |
+| `scripts/README.md`       | Syntaxe `token create` mise à jour (v0.7.2)                                             |
+| `scripts/README.en.md`    | Syntaxe `token create` mise à jour (v0.7.2)                                             |
 
 ---
 
@@ -153,19 +180,19 @@ token create KSE read,write    # ← fonctionne encore
 - **Test A/B** — `run_ab_test.py` : compare production (ancien mode) vs local (nouveau mode) sur les mêmes données.
 
 ### Gains mesurés (test A/B)
-| Métrique | Ancien mode (réécriture) | Nouveau mode (chirurgical) |
-|---|---|---|
-| Lignes perdues (progress.md) | 10 | **0** |
-| Lignes perdues (total) | 28 | **1** (replace_section attendu) |
-| Tokens completion LLM | 4850 | **3993** (-18%) |
-| Durée consolidation | 29s | **14.4s** (-50%) |
+| Métrique                     | Ancien mode (réécriture) | Nouveau mode (chirurgical)      |
+| ---------------------------- | ------------------------ | ------------------------------- |
+| Lignes perdues (progress.md) | 10                       | **0**                           |
+| Lignes perdues (total)       | 28                       | **1** (replace_section attendu) |
+| Tokens completion LLM        | 4850                     | **3993** (-18%)                 |
+| Durée consolidation          | 29s                      | **14.4s** (-50%)                |
 
 ### Fichiers modifiés
-| Fichier | Changements |
-|---------|------------|
-| `src/live_mem/core/consolidator.py` | Moteur d'édition Markdown + prompts chirurgicaux + rétrocompat |
-| `DESIGN/live-mem/CONSOLIDATION_LLM.md` | Design doc v0.6.0 complet |
-| `scripts/test_markdown_engine.py` | 77 tests unitaires (nouveau) |
+| Fichier                                | Changements                                                    |
+| -------------------------------------- | -------------------------------------------------------------- |
+| `src/live_mem/core/consolidator.py`    | Moteur d'édition Markdown + prompts chirurgicaux + rétrocompat |
+| `DESIGN/live-mem/CONSOLIDATION_LLM.md` | Design doc v0.6.0 complet                                      |
+| `scripts/test_markdown_engine.py`      | 77 tests unitaires (nouveau)                                   |
 
 ---
 
@@ -183,11 +210,11 @@ token create KSE read,write    # ← fonctionne encore
 - **Autocomplétion** enrichie dans le shell : `--permissions`, `--space-ids`, `read`, `read,write`, `read,write,admin`
 
 ### Fichiers modifiés
-| Fichier | Changements |
-|---------|------------|
-| `scripts/cli/commands.py` | `VALID_PERMISSIONS` (click.Choice), `token_create_cmd` contraint, `token_update_cmd` ajouté |
-| `scripts/cli/shell.py` | `_VALID_PERMS`, `_validate_permissions()`, handler `token update`, autocomplétion étendue |
-| `src/live_mem/core/tokens.py` | `VALID_PERMISSIONS`, validation dans `create_token()` et `update_token()` |
+| Fichier                       | Changements                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `scripts/cli/commands.py`     | `VALID_PERMISSIONS` (click.Choice), `token_create_cmd` contraint, `token_update_cmd` ajouté |
+| `scripts/cli/shell.py`        | `_VALID_PERMS`, `_validate_permissions()`, handler `token update`, autocomplétion étendue   |
+| `src/live_mem/core/tokens.py` | `VALID_PERMISSIONS`, validation dans `create_token()` et `update_token()`                   |
 
 ---
 

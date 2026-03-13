@@ -18,7 +18,7 @@ from .client import MCPClient
 from .display import (
     console, show_error, show_success, show_warning, show_json,
     show_health_result, show_whoami_result, show_about_result,
-    show_space_created, show_space_list, show_space_info, show_rules, show_notes,
+    show_space_created, show_space_updated, show_space_list, show_space_info, show_rules, show_notes,
     show_bank_list, show_bank_content, show_consolidation_result,
     show_graph_connected, show_graph_status, show_graph_push_result, show_graph_disconnected,
     show_token_created, show_token_list,
@@ -36,6 +36,7 @@ SHELL_COMMANDS = {
     "whoami": "Identité du token courant (nom, permissions, espaces)",
     "about": "Informations sur le service",
     "space create": "Créer un espace (space create <id> <desc> <rules>)",
+    "space update": "Modifier description/owner (space update <id> -d \"desc\" [-o \"owner\"])",
     "space list": "Lister les espaces",
     "space info": "Infos d'un espace (space info <id>)",
     "space rules": "Rules d'un espace (space rules <id>)",
@@ -179,6 +180,31 @@ async def _handle_space(client, args, json_out):
         })
         (show_json if json_out else show_space_created)(result) if result.get("status") == "created" else show_error(result.get("message", "?"))
 
+    elif sub == "update" and len(args) >= 2:
+        space_id = args[1]
+        # Parser les options nommées
+        description = ""
+        owner = ""
+        for i, a in enumerate(args):
+            if a in ("-d", "--description") and i + 1 < len(args):
+                description = args[i + 1]
+            elif a in ("-o", "--owner") and i + 1 < len(args):
+                owner = args[i + 1]
+        if not description and not owner:
+            console.print("[yellow]Usage : space update <space_id> -d \"description\" [-o \"owner\"][/yellow]")
+            return
+        tool_args = {"space_id": space_id}
+        if description:
+            tool_args["description"] = description
+        if owner:
+            tool_args["owner"] = owner
+        result = await client.call_tool("space_update", tool_args)
+        if result.get("status") == "ok":
+            show_space_updated(result)
+        else:
+            show_error(result.get("message", "Erreur"))
+        return
+
     elif sub == "list":
         result = await client.call_tool("space_list", {})
         (show_json if json_out else show_space_list)(result)
@@ -209,7 +235,7 @@ async def _handle_space(client, args, json_out):
         show_success(f"Supprimé") if result.get("status") == "deleted" else show_error(result.get("message", "?"))
 
     else:
-        show_warning("Usage: space [create|list|info|rules|summary|export|delete] ...")
+        show_warning("Usage: space [create|update|list|info|rules|summary|export|delete] ...")
 
 
 async def _handle_live(client, args, json_out):

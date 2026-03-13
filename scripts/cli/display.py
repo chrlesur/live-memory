@@ -167,17 +167,31 @@ def show_space_created(result: dict):
     ))
 
 
+def show_space_updated(result: dict):
+    """Affiche le résultat d'une mise à jour d'espace."""
+    updated = result.get("updated_fields", [])
+    panel_content = f"[bold]{result.get('space_id', '?')}[/bold]\n"
+    if "description" in updated:
+        panel_content += f"Description → {result.get('description', '')}\n"
+    if "owner" in updated:
+        panel_content += f"Owner → {result.get('owner', '')}\n"
+    panel_content += f"Champs modifiés : {', '.join(updated)}"
+    console.print(Panel(panel_content, title="✏️ Espace mis à jour", border_style="green"))
+
+
 def show_space_list(result: dict):
     """Affiche la liste des espaces."""
     spaces = result.get("spaces", [])
     table = Table(title=f"📂 {result.get('total', 0)} espaces", show_header=True)
     table.add_column("Space ID", style="cyan bold")
     table.add_column("Description")
+    table.add_column("Owner", style="dim")
     table.add_column("Notes", justify="right")
     table.add_column("Bank", justify="right")
     for s in spaces:
         table.add_row(
             s.get("space_id", "?"), s.get("description", ""),
+            s.get("owner", ""),
             str(s.get("live_notes_count", 0)), str(s.get("bank_files_count", 0)),
         )
     console.print(table)
@@ -190,6 +204,7 @@ def show_space_info(result: dict):
     console.print(Panel.fit(
         f"[bold]Space ID :[/bold] [cyan]{result.get('space_id', '?')}[/cyan]\n"
         f"[bold]Description :[/bold] {result.get('description', '')}\n"
+        f"[bold]Owner :[/bold] {result.get('owner', '') or '[dim]—[/dim]'}\n"
         f"[bold]Notes live :[/bold] {live.get('notes_count', 0)} ({live.get('total_size', 0)} octets)\n"
         f"[bold]Bank files :[/bold] {bank.get('files_count', 0)} ({bank.get('total_size', 0)} octets)\n"
         f"[bold]Consolidations :[/bold] {result.get('consolidation_count', 0)}\n"

@@ -108,6 +108,63 @@ class SpaceService:
             "created_at": now,
         }
 
+    async def update(
+        self,
+        space_id: str,
+        description: Optional[str] = None,
+        owner: Optional[str] = None,
+    ) -> dict:
+        """
+        Met à jour les métadonnées d'un espace existant.
+
+        Seuls les champs fournis (non-None) sont modifiés.
+        Les rules restent immuables.
+
+        Opérations S3 : GET _meta.json + PUT _meta.json
+
+        Args:
+            space_id: Identifiant de l'espace
+            description: Nouvelle description (None = pas de changement)
+            owner: Nouveau propriétaire (None = pas de changement)
+
+        Returns:
+            {"status": "ok", "space_id": ..., "updated_fields": [...]}
+        """
+        storage = get_storage()
+
+        # Lire les métadonnées existantes
+        meta = await storage.get_json(f"{space_id}/_meta.json")
+        if meta is None:
+            return {"status": "not_found", "message": f"Espace '{space_id}' introuvable"}
+
+        # Appliquer les modifications
+        updated_fields = []
+        if description is not None:
+            meta["description"] = description
+            updated_fields.append("description")
+        if owner is not None:
+            meta["owner"] = owner
+            updated_fields.append("owner")
+
+        if not updated_fields:
+            return {
+                "status": "ok",
+                "space_id": space_id,
+                "message": "Aucun champ à modifier",
+                "updated_fields": [],
+            }
+
+        # Écrire les métadonnées mises à jour
+        await storage.put_json(f"{space_id}/_meta.json", meta)
+
+        return {
+            "status": "ok",
+            "space_id": space_id,
+            "updated_fields": updated_fields,
+            "description": meta.get("description", ""),
+            "owner": meta.get("owner", ""),
+        }
+
     async def list_spaces(self, allowed_space_ids: Optional[list[str]] = None) -> dict:
         """
         Liste tous les espaces accessibles.

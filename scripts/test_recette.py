@@ -633,6 +633,7 @@ async def suite_qualite(admin: MCPClient, url: str, do_cleanup: bool):
 
     for tool, args in [
         ("space_list", {}),
+        ("space_update", {"space_id": QUALITE_SPACE, "description": "Test qualité v0.7.7"}),
         ("space_info", {"space_id": QUALITE_SPACE}),
         ("space_rules", {"space_id": QUALITE_SPACE}),
     ]:

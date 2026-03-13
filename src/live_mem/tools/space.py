@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Outils MCP — Catégorie Space (7 outils).
+Outils MCP — Catégorie Space (8 outils).
 
 Gestion des espaces mémoire : créer, lister, inspecter, exporter, supprimer.
 
 Permissions :
     - space_create  ✏️ (write)  — Crée un nouvel espace
+    - space_update  ✏️ (write)  — Met à jour description/owner
     - space_list    🔑 (read)   — Liste les espaces accessibles
     - space_info    🔑 (read)   — Infos détaillées d'un espace
     - space_rules   🔑 (read)   — Lit les rules immuables
@@ -25,13 +26,13 @@ from pydantic import Field
 
 def register(mcp: FastMCP) -> int:
     """
-    Enregistre les 7 outils space sur l'instance MCP.
+    Enregistre les 8 outils space sur l'instance MCP.
 
     Args:
         mcp: Instance FastMCP
 
     Returns:
-        Nombre d'outils enregistrés (7)
+        Nombre d'outils enregistrés (8)
     """
 
     @mcp.tool()
@@ -88,6 +89,46 @@ def register(mcp: FastMCP) -> int:
                         result["token_message"] = add_result["message"]
 
             return result
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    @mcp.tool()
+    async def space_update(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace à modifier")],
+        description: Annotated[str, Field(default="", description="Nouvelle description (vide = pas de changement)")] = "",
+        owner: Annotated[str, Field(default="", description="Nouveau propriétaire (vide = pas de changement)")] = "",
+    ) -> dict:
+        """
+        Met à jour les métadonnées d'un espace (description, owner).
+
+        Les rules restent immuables. Seuls les champs fournis (non vides)
+        sont modifiés.
+
+        Args:
+            space_id: Identifiant de l'espace à modifier
+            description: Nouvelle description (vide = pas de changement)
+            owner: Nouveau propriétaire (vide = pas de changement)
+
+        Returns:
+            Champs modifiés et nouvelles valeurs
+        """
+        from ..auth.context import check_access, check_write_permission
+        from ..core.space import get_space_service
+
+        try:
+            access_err = check_access(space_id)
+            if access_err:
+                return access_err
+
+            write_err = check_write_permission()
+            if write_err:
+                return write_err
+
+            return await get_space_service().update(
+                space_id=space_id,
+                description=description if description else None,
+                owner=owner if owner else None,
+            )
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -280,4 +321,4 @@ def register(mcp: FastMCP) -> int:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    return 7  # Nombre d'outils enregistrés
+    return 8  # Nombre d'outils enregistrés
