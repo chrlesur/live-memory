@@ -1,6 +1,6 @@
 # 🔌 Guide d'intégration Live Memory avec Cline (VS Code / VSCodium)
 
-> **Version** : 0.7.3 | **Date** : 2026-03-13
+> **Version** : 0.7.4 | **Date** : 2026-03-13
 
 Ce guide détaille pas à pas comment connecter **Cline** (l'agent IA dans VS Code ou VSCodium) à **Live Memory** pour lui donner une mémoire de travail partagée et persistante.
 
@@ -210,54 +210,90 @@ Pour que Cline utilise automatiquement Live Memory, ajoutez des **Custom Instruc
 
 Dans Cline : **Settings** → **Custom Instructions** (ou dans le fichier `.clinerules` de votre projet).
 
-### 5.2 Instructions recommandées (template `{SPACE}/{AGENT}`)
+### 5.2 Instructions recommandées (template `{SPACE}`)
 
-Copiez le fichier **`.clinerules/standard.memory.bank.md`** à la racine de votre projet. Ce template utilise des **placeholders** `{SPACE}` et `{AGENT}` — il suffit de modifier **2 lignes** en haut du fichier pour l'adapter à n'importe quel projet :
+Copiez le contenu ci-dessous dans les **Custom Instructions** de votre agent (ou dans un fichier `.clinerules` à la racine de votre projet). Ce template utilise le placeholder `{SPACE}` — il suffit de configurer **une seule valeur** :
+
 
 ```markdown
 # Cline's Memory Bank — Live Memory MCP
 
-Ma mémoire se réinitialise complètement entre les sessions. Je dépends ENTIÈREMENT
-de la Memory Bank pour comprendre le projet et continuer efficacement.
+Ma mémoire se réinitialise complètement entre les sessions. Je dépends ENTIÈREMENT de la Memory Bank pour comprendre le projet et continuer efficacement.
 
 ## 🔌 Configuration (à modifier par projet)
 
 Ma mémoire persistante est gérée par le serveur MCP **Live Memory** (`my-live-mem`).
 
-> **⚙️ Les 2 seules valeurs à personnaliser :**
+> **⚙️ La seule valeur à personnaliser :**
 >
 > - **SPACE** = `mon-projet`       ← Remplacez par votre space_id
-> - **AGENT** = `cline-dev`        ← Remplacez par votre nom d'agent
 >
-> Toutes les instructions ci-dessous utilisent `{SPACE}` et `{AGENT}`
-> — je les substitue automatiquement par les valeurs ci-dessus.
+> Toutes les instructions ci-dessous utilisent `{SPACE}` — je le substitue automatiquement par la valeur ci-dessus.
+> Le nom de l'agent est **auto-détecté** depuis le token d'authentification (pas besoin de le configurer).
 
 ## 📖 Au démarrage de CHAQUE tâche (OBLIGATOIRE)
 
-1. Appeler `space_rules("{SPACE}")` pour lire les rules
+1. Appeler `space_rules("{SPACE}")` pour lire les rules (structure de la bank)
 2. Appeler `bank_read_all("{SPACE}")` pour charger TOUT le contexte
 3. Lire attentivement le contenu avant de commencer
+4. Identifier le focus actuel dans `activeContext.md`
+
+> ⚠️ Ne JAMAIS commencer à travailler sans avoir lu la bank.
 
 ## 📝 Pendant le travail
 
-live_note(space_id="{SPACE}", category="<catégorie>", content="...", agent="{AGENT}")
+Écrire des notes fréquentes et atomiques avec `live_note` :
 
-## 🧠 En fin de session
+live_note(space_id="{SPACE}", category="<catégorie>", content="...")
 
-bank_consolidate(space_id="{SPACE}", agent="{AGENT}")
+Le paramètre `agent` est **auto-détecté** depuis le token — inutile de le passer.
+
+**Catégories** :
+- `observation` — Constats factuels, résultats de commandes
+- `decision` — Choix techniques et leur justification
+- `progress` — Avancement, ce qui est terminé
+- `issue` — Problèmes rencontrés, bugs
+- `todo` — Tâches identifiées à faire
+- `insight` — Apprentissages, patterns découverts
+- `question` — Points à clarifier, décisions en suspens
+
+## 🧠 En fin de session (ou après un bloc de travail significatif)
+
+bank_consolidate(space_id="{SPACE}")
+
+Le LLM consolidera **mes propres notes** (auto-détection de l'agent depuis le token) en mettant à jour les fichiers de la bank selon les rules du space.
+
+> ℹ️ Seul un admin peut consolider les notes de tous les agents (`agent=""`).
 
 ## ⚠️ Règles impératives
 
-1. Ne JAMAIS écrire directement dans la bank
-2. Toujours passer `agent="{AGENT}"` et `space_id="{SPACE}"`
-3. Écrire des notes atomiques après chaque étape importante
-4. Consolider en fin de session
-5. Lire la bank au démarrage
+1. **Ne JAMAIS écrire directement dans la bank** — seule la consolidation LLM le fait
+2. **Toujours passer `space_id="{SPACE}"`** dans tous les appels
+3. **Écrire des notes atomiques après chaque étape importante** — 1 note = 1 fait, 1 décision, ou 1 tâche
+4. **Consolider en fin de session** — ne jamais quitter sans consolider mais toujours après avoir validé avec l'utilisateur
+5. **Lire la bank au démarrage** — ne jamais travailler sans contexte
+
+## 🔄 Quand demander une mise à jour
+
+Si l'utilisateur demande **"update memory bank"** ou **"met à jour la memory bank"** :
+1. Écrire des notes `live_note` résumant l'état actuel du travail
+2. Appeler `bank_consolidate(space_id="{SPACE}")`
+3. Vérifier le résultat avec `bank_read_all("{SPACE}")`
+
+## 📊 Commandes utiles
+
+| Action                          | Commande                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| Lire tout le contexte           | `bank_read_all("{SPACE}")`                                                |
+| Lire les rules                  | `space_rules("{SPACE}")`                                                  |
+| Écrire une note                 | `live_note(space_id="{SPACE}", category="...", content="...")`            |
+| Consolider                      | `bank_consolidate(space_id="{SPACE}")`                                    |
+| Voir les notes récentes         | `live_read(space_id="{SPACE}")`                                           |
+| Voir les notes d'un autre agent | `live_read(space_id="{SPACE}", agent="autre-agent")`                      |
+| Info sur l'espace               | `space_info("{SPACE}")`                                                   |
 ```
 
-> 💡 **Pour un nouveau projet** : copiez ce fichier, changez les 2 lignes `SPACE` et `AGENT`, c'est tout !
->
-> Le template complet est dans le repo : [`.clinerules/standard.memory.bank.md`](.clinerules/standard.memory.bank.md)
+> 💡 **Pour un nouveau projet** : copiez ce fichier, changez la ligne `SPACE`, c'est tout !
 
 ---
 
@@ -279,8 +315,7 @@ bank_consolidate(space_id="{SPACE}", agent="{AGENT}")
 │     • live_note("progress", "Auth terminée")   │
 ├────────────────────────────────────────────────┤
 │  3. FIN DE SESSION                             │
-│     bank_consolidate("mon-projet",             │
-│                       agent="cline-dev")       │
+│     bank_consolidate("mon-projet")             │
 │     → LLM synthétise les notes en bank         │
 │     → Notes live supprimées après succès       │
 └────────────────────────────────────────────────┘
@@ -311,25 +346,20 @@ Vous verrez les notes apparaître en temps réel dans la **Live Timeline** et la
 
 ### Version template (recommandée)
 
-Copiez le fichier [`.clinerules/standard.memory.bank.md`](.clinerules/standard.memory.bank.md) dans votre projet, puis modifiez **seulement 2 lignes** :
+Copiez le contenu du fichier [`.clinerules/standard.memory.bank.md`](.clinerules/standard.memory.bank.md) dans vos Custom Instructions ou dans un fichier `.clinerules` à la racine de votre projet.
 
-```
-> - **SPACE** = `mon-projet`       ← votre space_id
-> - **AGENT** = `cline-dev`        ← votre nom d'agent
-```
-
-Tout le reste utilise `{SPACE}` et `{AGENT}` — l'agent IA substitue automatiquement.
+Modifiez ensuite **uniquement la valeur de `{SPACE}`** pour l'adapter à votre projet. Le nom de l'agent est auto-détecté.
 
 ### Version minimaliste (copier-coller dans Custom Instructions)
 
-Si vous ne voulez pas de fichier `.clinerules`, ajoutez simplement dans les Custom Instructions globales :
+Si vous voulez une version ultra-courte, ajoutez ceci dans les Custom Instructions globales :
 
 ```
 Tu as accès à Live Memory (serveur MCP).
 - Au démarrage: bank_read_all("{SPACE}") et space_rules("{SPACE}")
-- Pendant le travail: live_note(space_id="{SPACE}", category="...", content="...", agent="{AGENT}")
-- En fin de session: bank_consolidate(space_id="{SPACE}", agent="{AGENT}")
-Où {SPACE} = "mon-projet" et {AGENT} = "cline-dev".
+- Pendant le travail: live_note(space_id="{SPACE}", category="...", content="...")
+- En fin de session: bank_consolidate(space_id="{SPACE}")
+Où {SPACE} = "mon-projet". L'agent est auto-détecté depuis le token.
 ```
 
 ---
@@ -340,67 +370,35 @@ Live Memory permet à **plusieurs agents** de collaborer sur le même espace mé
 
 ### Scénario : Cline (dev) + Claude (review)
 
-```json
-// cline_mcp_settings.json — Agent Cline
-{
-  "mcpServers": {
-    "live-memory": {
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Bearer lm_TOKEN_CLINE"
-      }
-    }
-  }
-}
-```
+Pour que deux agents collaborent, il suffit de leur créer **deux tokens différents** :
 
-```json
-// claude_desktop_config.json — Agent Claude
-{
-  "mcpServers": {
-    "live-memory": {
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Bearer lm_TOKEN_CLAUDE"
-      }
-    }
-  }
-}
-```
+1. Créer le token pour Cline (`admin_create_token name="cline-dev"`)
+2. Créer le token pour Claude (`admin_create_token name="claude-review"`)
+3. Configurer chaque agent avec son propre token
 
-**Instructions Cline** : `agent="cline-dev"` dans `live_note`  
-**Instructions Claude** : `agent="claude-review"` dans `live_note`
+L'identité de l'agent est **automatiquement déduite de son token** à chaque fois qu'il appelle `live_note` ou `bank_consolidate`. Ils n'ont pas besoin de le préciser.
 
 ### Communication entre agents
 
 Les agents ne se parlent pas directement. Ils communiquent **via l'espace partagé** :
 
 ```
-Cline  → live_note(category="question", "Faut-il supporter le CSV ?")
-Claude → live_read(category="question")  ← voit la question
-Claude → live_note(category="decision", "Non, JSON uniquement")
-Cline  → live_read(category="decision")  ← voit la réponse
+Cline  → live_note(category="question", content="Faut-il supporter le CSV ?")
+Claude → live_read(category="question")  ← voit la question de Cline
+Claude → live_note(category="decision", content="Non, JSON uniquement")
+Cline  → live_read(category="decision")  ← voit la réponse de Claude
 ```
 
 ### Consolidation par agent
 
-Chaque agent consolide **ses propres notes** :
+Chaque agent consolide **ses propres notes** sans interférer avec celles des autres :
 
 ```
-Cline  → bank_consolidate(agent="cline-dev")    # Consolide seulement ses notes
-Claude → bank_consolidate(agent="claude-review") # Consolide seulement ses notes
+Cline  → bank_consolidate(space_id="mon-projet")  # Ne consolide QUE les notes de cline-dev
+Claude → bank_consolidate(space_id="mon-projet")  # Ne consolide QUE les notes de claude-review
 ```
 
-Un admin peut consolider toutes les notes d'un coup : `bank_consolidate(agent="")`.
-
-### Tokens différents ou partagé ?
-
-| Option                | Avantages                             | Inconvénients                         |
-| --------------------- | ------------------------------------- | ------------------------------------- |
-| **1 token par agent** | Audit précis, révocation individuelle | Plus de tokens à gérer                |
-| **1 token partagé**   | Simple                                | Pas de distinction dans les logs auth |
-
-**Recommandation** : 1 token partagé `read,write` suffit pour un usage courant. Le paramètre `agent=` dans `live_note` identifie l'auteur, indépendamment du token.
+Si un agent a les droits **admin**, il peut consolider les notes de tout le monde en appelant `bank_consolidate` (qui par défaut traite tout le monde pour un admin).
 
 ---
 
@@ -486,4 +484,4 @@ Redémarrez Claude Desktop après la modification. Les 30 outils Live Memory app
 
 ---
 
-*Guide d'intégration Live Memory v0.7.3 — [Documentation complète](README.md)*
+*Guide d'intégration Live Memory v0.7.4 — [Documentation complète](README.md)*

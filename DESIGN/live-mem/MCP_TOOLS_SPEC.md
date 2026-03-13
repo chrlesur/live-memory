@@ -385,8 +385,9 @@ async def bank_consolidate(
 ) -> dict:
 ```
 
-**Paramètre `agent`** (ajouté en v0.2.0) :
-- `agent=""` (vide) : consolide **TOUTES** les notes → permission admin requise
+**Paramètre `agent`** (ajouté en v0.2.0, modifié en v0.7.4) :
+- `agent=""` (vide) + **admin** : consolide **TOUTES** les notes
+- `agent=""` (vide) + **write** : auto-détecte le caller → consolide **ses propres notes** uniquement
 - `agent="mon-agent"` (= nom du caller) : consolide uniquement les notes de cet agent → permission write suffit
 - `agent="autre-agent"` (≠ caller) : consolide les notes d'un autre agent → permission admin requise
 
@@ -739,7 +740,7 @@ async def admin_gc_notes(
 | `admin_update_token` |      |       |  ✅   |        |
 | `admin_gc_notes`     |      |       |  ✅   |        |
 
-\* `bank_consolidate` : write suffit pour consolider ses propres notes (`agent=caller`). Admin requis pour `agent=""` (toutes) ou `agent=autre`.
+\* `bank_consolidate` : write suffit pour consolider ses propres notes (`agent=caller` ou `agent=""` auto-détecté). Admin requis pour consolider TOUTES les notes ou celles d'un autre agent (`agent=autre`).
 
 ---
 

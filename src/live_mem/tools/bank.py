@@ -211,10 +211,10 @@ def register(mcp: FastMCP) -> int:
         Args:
             space_id: Identifiant de l'espace à consolider
             agent: Nom de l'agent dont consolider les notes.
-                   Vide = consolide TOUTES les notes (admin requis).
+                   Vide + admin = consolide TOUTES les notes.
+                   Vide + write = auto-détecte le caller (ses propres notes).
                    Si l'agent correspond au token → write suffit.
-                   Si l'agent est différent → admin requis
-                   (consolider pour un autre agent).
+                   Si l'agent est différent → admin requis.
 
         Returns:
             Métriques de consolidation (notes traitées, fichiers MAJ, tokens)
@@ -232,35 +232,47 @@ def register(mcp: FastMCP) -> int:
             if access_err:
                 return access_err
 
-            # Vérifier les permissions selon le cas :
-            # - agent="" (tout) ou agent différent du caller → admin requis
-            # - agent = caller's name → write suffit
+            # Identifier le caller (client_name du token)
             caller = get_current_agent_name()
-            if agent and agent == caller:
-                # L'agent consolide ses propres notes → write suffit
+
+            # Règles de permissions pour bank_consolidate :
+            #
+            # 1. admin → peut consolider tout (agent="" = toutes les notes)
+            #    ou les notes d'un agent spécifique (agent="xxx")
+            #
+            # 2. write (pas admin) → ne peut consolider QUE ses propres notes
+            #    - agent="" → auto-set à caller (on consolide ses propres notes)
+            #    - agent=caller → OK
+            #    - agent=autre → REFUSÉ (admin requis)
+            #
+            # 3. read → REFUSÉ (write minimum requis)
+
+            admin_err = check_admin_permission()
+            is_admin = admin_err is None
+
+            if is_admin:
+                # Admin : peut tout consolider, pas de restriction
+                pass
+            else:
+                # Vérifier au minimum la permission write
                 write_err = check_write_permission()
                 if write_err:
                     return write_err
-            else:
-                # Consolider tout ou pour un autre agent → admin requis
-                admin_err = check_admin_permission()
-                if admin_err:
-                    # Fallback : si pas admin mais write, permettre
-                    # uniquement si agent vide (backward compat)
-                    write_err = check_write_permission()
-                    if write_err:
-                        return write_err
-                    # write OK mais pas admin : forcer le filtre sur le caller
-                    if agent and agent != caller:
-                        return {
-                            "status": "error",
-                            "message": (
-                                f"Permission 'admin' requise pour consolider "
-                                f"les notes de l'agent '{agent}'. "
-                                f"Vous pouvez consolider vos propres notes "
-                                f"avec agent='{caller}'."
-                            ),
-                        }
+
+                # Write sans admin : on ne peut consolider que ses notes
+                if agent and agent != caller:
+                    return {
+                        "status": "error",
+                        "message": (
+                            f"Permission 'admin' requise pour consolider "
+                            f"les notes de l'agent '{agent}'. "
+                            f"Vous pouvez consolider vos propres notes "
+                            f"avec agent='{caller}' ou agent='' (auto-détection)."
+                        ),
+                    }
+                # Auto-détection : agent vide → consolider ses propres notes
+                if not agent:
+                    agent = caller
 
             # Vérifier le lock de consolidation
             lock = get_lock_manager().consolidation(space_id)

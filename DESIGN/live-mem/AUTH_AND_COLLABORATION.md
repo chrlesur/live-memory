@@ -212,7 +212,7 @@ Agent B → live_note(category="decision", "Non, JSON uniquement")
 | `bank_read`        | read     | ✅           | Lecture                               |
 | `bank_read_all`    | read     | ✅           | Lecture                               |
 | `bank_list`        | read     | ✅           | Lecture                               |
-| `bank_consolidate` | write*   | ✅           | *admin si agent="" ou agent≠caller    |
+| `bank_consolidate` | write*   | ✅           | *write: auto-détecte caller. admin si agent≠caller ou consolidation globale |
 | **Graph**          |          |              |                                       |
 | `graph_connect`    | write    | ✅           | Configure la connexion Graph Memory   |
 | `graph_push`       | write    | ✅           | Pousse la bank dans le graphe         |

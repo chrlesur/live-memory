@@ -440,10 +440,60 @@ async def suite_isolation(admin: MCPClient, url: str, do_cleanup: bool):
     except Exception as e:
         test_fail("reader space_create", str(e))
 
-    pause("Read-only OK → Auto-ajout")
+    pause("Read-only OK → Consolidation permissions")
+
+    # ── CONSOLIDATION PERMISSIONS ─────────────────────
+    section("Isolation 5/7 — Consolidation permissions (v0.7.4)")
+
+    # Client A écrit une note dans son space
+    try:
+        r = await ca.call_tool("live_note", {
+            "space_id": ISO_SPACE_A, "category": "observation",
+            "content": "Note test consolidation permissions",
+        })
+        vprint(f"live_note: {r.get('status')}")
+    except Exception:
+        pass
+
+    # write + agent="" → auto-détecte le caller, PAS d'erreur de permission
+    try:
+        r = await ca.call_tool("bank_consolidate", {"space_id": ISO_SPACE_A})
+        if r.get("status") == "ok":
+            test_pass("write+agent='' → auto caller", f"{r.get('notes_processed', 0)} notes consolidées")
+        elif r.get("status") == "error" and "permission" in r.get("message", "").lower():
+            test_fail("write+agent='' REFUSÉ", r.get("message", ""))
+        else:
+            # Peut échouer pour d'autres raisons (pas de notes, timeout...) — pas un problème de permission
+            test_pass("write+agent='' → pas d'erreur permission", f"status={r.get('status')}")
+    except Exception as e:
+        test_fail("write+agent=''", str(e))
+
+    # write + agent=autre → REFUSÉ (admin requis)
+    try:
+        r = await ca.call_tool("bank_consolidate", {
+            "space_id": ISO_SPACE_A, "agent": "admin-setup",
+        })
+        if r.get("status") == "error" and "admin" in r.get("message", "").lower():
+            test_pass("write+agent=autre REFUSÉ", "admin requis")
+        else:
+            test_fail("write+agent=autre DEVRAIT ÉCHOUER", f"status={r.get('status')}, msg={r.get('message', '')}")
+    except Exception as e:
+        test_fail("write+agent=autre", str(e))
+
+    # read-only ne peut pas consolider
+    try:
+        r = await ro.call_tool("bank_consolidate", {"space_id": ISO_SPACE_A})
+        if r.get("status") == "error" and "write" in r.get("message", "").lower():
+            test_pass("reader consolidate REFUSÉ", "write requis")
+        else:
+            test_fail("reader consolidate DEVRAIT ÉCHOUER", f"status={r.get('status')}")
+    except Exception as e:
+        test_fail("reader consolidate", str(e))
+
+    pause("Consolidation OK → Auto-ajout")
 
     # ── AUTO-AJOUT ────────────────────────────────────
-    section("Isolation 5/6 — Auto-ajout space au token (v0.7.1)")
+    section("Isolation 6/7 — Auto-ajout space au token (v0.7.1)")
 
     try:
         r = await ca.call_tool("space_create", {

@@ -5,6 +5,36 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.7.4] — 2026-03-13
+
+### Corrigé — Sécurité `bank_consolidate` (incohérence permissions)
+- **`agent=""` avec write consolidait TOUTES les notes** — Un token `write` (non-admin) pouvait consolider les notes de tous les agents en passant `agent=""`, contournant l'isolation par agent. C'était un fallback de rétrocompatibilité v0.2.0 qui créait une incohérence de sécurité.
+- **Nouveau comportement** :
+  - `write` + `agent=""` → auto-détecte le `client_name` du token et consolide **uniquement ses propres notes**
+  - `write` + `agent=caller` → OK (même chose explicitement)
+  - `write` + `agent=autre` → REFUSÉ (admin requis)
+  - `admin` + `agent=""` → consolide TOUTES les notes (inchangé)
+  - `admin` + `agent=xxx` → consolide les notes de l'agent xxx (inchangé)
+- **Matrice des permissions** clarifiée dans le code avec commentaires détaillés.
+
+### Amélioré — Template Custom Instructions simplifié (suppression de `{AGENT}`)
+- **Le paramètre `agent` n'est plus nécessaire** dans le template — il est auto-détecté depuis le token d'authentification, tant pour `live_note` (déjà en place) que pour `bank_consolidate` (nouveau).
+- Le template ne contient plus qu'**une seule variable** : `{SPACE}` (le nom du space).
+- Suppression de la règle "toujours passer agent=..." — l'agent est implicite.
+- Simplification de la documentation : les utilisateurs sont invités à copier le template directement dans leurs Custom Instructions globales, sans mentionner explicitement l'arborescence locale `.clinerules`.
+
+### Fichiers modifiés
+| Fichier | Changements |
+|---------|------------|
+| `src/live_mem/tools/bank.py` | Logique d'autorisation `bank_consolidate` réécrite — auto-set `agent=caller` pour les tokens write non-admin |
+| `GUIDE_INTEGRATION_CLINE.md` | Mise à jour v0.7.4, template simplifié sans agent, focus sur les Custom Instructions |
+| `README.md` et `README.en.md` | Nettoyage des exemples, lien direct vers le guide d'intégration |
+| `scripts/test_recette.py` | +3 tests isolation (consolidation permissions) : write+agent='', write+agent=autre, reader consolidate |
+| `DESIGN/live-mem/AUTH_AND_COLLABORATION.md` | Matrice permissions mise à jour (bank_consolidate auto-détection) |
+| `DESIGN/live-mem/MCP_TOOLS_SPEC.md` | Spec bank_consolidate mise à jour (v0.7.4 agent auto-détecté) |
+
+---
+
 ## [0.7.3] — 2026-03-13
 
 ### Amélioré — Template `.clinerules/standard.memory.bank.md` (DRY)
