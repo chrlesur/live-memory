@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.7.7-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -119,7 +119,7 @@ Concrètement, les agents peuvent :
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   34 outils • Auth Bearer      │
+          │   35 outils • Auth Bearer      │
           │   Consolidation LLM            │
           └──────┬──────────┬──────┬───────┘
                  │          │      │
@@ -259,7 +259,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 Outils MCP
 
-34 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
+35 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
 
 ### System (3 outils)
 
@@ -290,7 +290,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | `live_read`   | `space_id`, `limit?`, `category?`, `agent?`          | Lit les notes live (filtres optionnels)                                                                |
 | `live_search` | `space_id`, `query`, `limit?`                        | Recherche plein texte dans les notes                                                                   |
 
-### Bank (4 outils)
+### Bank (5 outils)
 
 | Outil              | Paramètres             | Description                                                                                                |
 | ------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -569,7 +569,7 @@ Voir [scripts/README.md](scripts/README.md) pour le détail complet.
 
 ```
 live-memory/
-├── src/live_mem/              # Code source (34 outils MCP + interface web)
+├── src/live_mem/              # Code source (35 outils MCP + interface web)
 │   ├── server.py              # Serveur FastMCP + middlewares
 │   ├── config.py              # Configuration pydantic-settings
 │   ├── auth/                  # Authentification
@@ -615,7 +615,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.7.7
+├── VERSION                    # 0.8.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -678,4 +678,4 @@ Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.7.7 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.8.0 — Mémoire de travail partagée pour agents IA collaboratifs*

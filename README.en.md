@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-0.7.5-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -118,7 +118,7 @@ Specifically, agents can:
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   33 tools • Auth Bearer       │
+          │   35 tools • Auth Bearer       │
           │   LLM Consolidation            │
           └──────┬──────────┬──────┬───────┘
                  │          │      │
@@ -258,7 +258,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 MCP Tools
 
-33 tools exposed via the MCP protocol (Streamable HTTP), divided into 7 categories.
+35 tools exposed via the MCP protocol (Streamable HTTP), divided into 7 categories.
 
 ### System (3 tools)
 
@@ -268,7 +268,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | `system_whoami` | —          | 👤 Current token identity (name, permissions, spaces)     |
 | `system_about`  | —          | Service identity (version, tools, capabilities)           |
 
-### Space (7 tools)
+### Space (8 tools)
 
 | Tool            | Parameters                                   | Description                                                |
 | --------------- | -------------------------------------------- | ---------------------------------------------------------- |
@@ -288,7 +288,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | `live_read`   | `space_id`, `limit?`, `category?`, `agent?`          | Reads live notes (optional filters)                                                                    |
 | `live_search` | `space_id`, `query`, `limit?`                        | Full-text search in notes                                                                              |
 
-### Bank (4 tools)
+### Bank (5 tools)
 
 | Tool               | Parameters             | Description                                                                                                |
 | ------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -559,7 +559,7 @@ python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 |---|---|---|
 | `recette` | 7 | Full pipeline: token → notes → LLM consolidation → bank |
 | `isolation` | 18 | Multi-tenant isolation v0.7.1: cross-space access, backup filtering, auto-add token |
-| `qualite` | 19 | 32 MCP tools testing: system, admin, space, live, bank, backup, GC |
+| `qualite` | 19 | 35 MCP tools testing: system, admin, space, live, bank, backup, GC |
 | `graph` | ~8 | Graph Memory bridge: connect, push, status, disconnect (optional) |
 
 ---
@@ -587,7 +587,7 @@ python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 
 ```
 live-memory/
-├── src/live_mem/              # Source code (33 MCP tools + web interface)
+├── src/live_mem/              # Source code (35 MCP tools + web interface)
 │   ├── server.py              # FastMCP server + middlewares
 │   ├── config.py              # pydantic-settings configuration
 │   ├── auth/                  # Authentication
@@ -623,7 +623,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.7.0
+├── VERSION                    # 0.8.0
 ├── CHANGELOG.md
 └── FAQ.md
 ```
@@ -674,4 +674,4 @@ Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.7.5 — Shared working memory for collaborative AI agents*
+*Live Memory v0.8.0 — Shared working memory for collaborative AI agents*

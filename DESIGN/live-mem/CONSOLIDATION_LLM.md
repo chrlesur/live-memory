@@ -1,6 +1,6 @@
 # Pipeline de Consolidation LLM — Live Memory
 
-> **Version** : 0.6.0 | **Date** : 2026-03-10 | **Auteur** : Cloud Temple
+> **Version** : 0.8.0 | **Date** : 2026-03-13 | **Auteur** : Cloud Temple
 
 ---
 
@@ -188,6 +188,64 @@ meta["total_notes_processed"] += notes_count
 # 6d. Supprimer les notes live traitées (EN DERNIER — atomicité)
 await storage.delete_many(notes_keys)
 ```
+
+---
+
+## 3bis. Consolidation par lots (v0.8.0)
+
+À partir de v0.8.0, les notes sont traitées par **lots** (batches) au lieu d'être envoyées toutes en une seule passe au LLM.
+
+### Motivation
+
+Le LLM `qwen3-2507:235b` insère des **caractères Unicode invisibles** (ZWSP, BOM, Soft Hyphen) dans les noms de fichiers à partir du ~8ème fichier dans les réponses JSON longues. Ces caractères rendent les fichiers bank illisibles par `bank_read`. La consolidation par lots produit des réponses JSON plus courtes, éliminant ce problème.
+
+### Configuration
+
+```
+CONSOLIDATION_BATCH_SIZE=5   # Nombre de notes par lot (défaut 5)
+CONSOLIDATION_MAX_NOTES=500  # Limite globale par consolidation
+```
+
+### Algorithme
+
+```
+consolidate(space_id, agent):
+    1. Collecter toutes les notes + rules + bank + synthèse
+    2. Découper les notes en lots de BATCH_SIZE
+    3. Pour chaque lot (batch_idx = 1..N) :
+       a. Si batch_idx > 1 : relire la bank à jour depuis S3
+       b. Construire le prompt (rules + synthèse + lot de notes + bank courante)
+       c. Appeler le LLM → file_edits + synthesis
+       d. _write_results(skip_meta=True) :
+          - Appliquer les file_edits (sanitize filenames)
+          - Écrire la synthèse
+          - Supprimer les notes du lot
+       e. Si erreur LLM ou write → STOP (lots précédents OK)
+    4. Mettre à jour _meta.json une seule fois (consolidation_count +1)
+```
+
+### Propriétés clés
+
+- **Incrémentalité** : chaque lot voit la bank modifiée par les lots précédents
+- **Résilience** : si le lot 4/6 échoue, les lots 1-3 sont déjà intégrés
+- **Meta unique** : `consolidation_count` incrémenté de 1 (pas de N), `total_notes_processed` additionné
+- **Sanitisation** : `_sanitize_filename()` appliqué sur chaque filename avant écriture S3
+
+### Métriques enrichies (réponse `bank_consolidate`)
+
+```json
+{
+  "batches_total": 6,
+  "batches_completed": 6,
+  "batch_size": 5,
+  "notes_processed": 30,
+  "llm_tokens_used": 24000
+}
+```
+
+### Protection Unicode (`_sanitize_filename`)
+
+Supprime 20 types de caractères Unicode invisibles et normalise 10 types de tirets Unicode vers le tiret ASCII standard (U+002D). Voir `consolidator.py` pour la liste complète.
 
 ---
 
@@ -507,4 +565,4 @@ Input: 3 notes, 6 fichiers bank
 
 ---
 
-*Document mis à jour le 10 mars 2026 — Live Memory v0.6.0 (consolidation chirurgicale)*
+*Document mis à jour le 10 mars 2026 — Live Memory v0.8.0 (consolidation chirurgicale)*

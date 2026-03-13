@@ -108,20 +108,22 @@ class ConsolidatorService:
         self._max_tokens = settings.llmaas_max_tokens
         self._temperature = settings.llmaas_temperature
         self._max_notes = settings.consolidation_max_notes
+        self._batch_size = settings.consolidation_batch_size
 
     async def consolidate(self, space_id: str, agent: str = "") -> dict:
         """
-        Pipeline complet de consolidation pour un espace.
+        Pipeline complet de consolidation pour un espace, par lots.
+
+        Les notes sont traitées par lots de `batch_size` (défaut 10) pour :
+        - Garder les réponses JSON du LLM courtes (évite le drift Unicode)
+        - Permettre une meilleure intégration incrémentale
+        - Rendre le pipeline plus résilient (lots précédents déjà intégrés)
+
+        Chaque lot relit la bank à jour depuis S3, ce qui permet au LLM
+        de voir les modifications des lots précédents.
 
         IMPORTANT : Seules les notes de l'agent appelant sont consolidées.
         Les notes des autres agents restent dans live/ en attente.
-
-        Étapes :
-            1. Collecter les inputs (rules, synthesis, notes de l'agent, bank)
-            2. Construire le prompt LLM (format édition chirurgicale)
-            3. Appeler le LLM
-            4. Appliquer les opérations d'édition sur les fichiers bank
-            5. Écrire les résultats (bank, synthesis, supprimer notes)
 
         Args:
             space_id: Identifiant de l'espace à consolider
@@ -140,51 +142,163 @@ class ConsolidatorService:
         if inputs.get("status") == "error":
             return inputs
 
+        all_notes = inputs["notes"]
+        all_notes_keys = inputs["notes_keys"]
+
         # Pas de notes → rien à faire
-        if not inputs["notes"]:
+        if not all_notes:
             return {
                 "status": "ok",
                 "notes_processed": 0,
                 "message": "No new notes to consolidate",
             }
 
-        # ── Étape 2 : Construire le prompt ────────────────
-        messages = self._build_prompt(
-            space_id=space_id,
-            rules=inputs["rules"],
-            synthesis=inputs["synthesis"],
-            notes=inputs["notes"],
-            bank_files=inputs["bank_files"],
-        )
+        # ── Étape 2 : Découper en lots ────────────────────
+        batch_size = self._batch_size
+        batches = []
+        for i in range(0, len(all_notes), batch_size):
+            batch_notes = all_notes[i:i + batch_size]
+            batch_keys = all_notes_keys[i:i + batch_size]
+            batches.append((batch_notes, batch_keys))
 
-        # ── Étape 3 : Appeler le LLM ─────────────────────
-        llm_result = await self._call_llm(messages)
-        if llm_result.get("status") == "error":
-            return llm_result
+        batch_count = len(batches)
+        rules = inputs["rules"]
 
-        # ── Étape 4 : Appliquer les éditions et écrire ───
-        write_result = await self._write_results(
-            space_id=space_id,
-            llm_output=llm_result["data"],
-            bank_files=inputs["bank_files"],
-            notes_keys=inputs["notes_keys"],
-            notes_count=len(inputs["notes"]),
-            usage=llm_result.get("usage", {}),
-        )
+        # Métriques accumulées
+        total_notes = 0
+        total_created = 0
+        total_updated = 0
+        total_ops_applied = 0
+        total_ops_failed = 0
+        total_tokens = 0
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        batches_completed = 0
+        last_synthesis_size = 0
 
-        write_result["duration_seconds"] = round(time.monotonic() - t0, 1)
+        # Bank et synthèse courantes (relues entre les lots)
+        current_bank = inputs["bank_files"]
+        current_synthesis = inputs["synthesis"]
+
         logger.info(
-            "Consolidation done — space=%s agent=%s notes=%d files_created=%d "
-            "files_updated=%d files_unchanged=%d tokens=%d duration=%.1fs",
-            space_id, agent_label,
-            write_result.get("notes_processed", 0),
-            write_result.get("bank_files_created", 0),
-            write_result.get("bank_files_updated", 0),
-            write_result.get("bank_files_unchanged", 0),
-            write_result.get("llm_tokens_used", 0),
-            write_result["duration_seconds"],
+            "Consolidation plan — %d notes in %d batch(es) of %d",
+            len(all_notes), batch_count, batch_size,
         )
-        return write_result
+
+        # ── Étape 3 : Traiter chaque lot ──────────────────
+        for batch_idx, (batch_notes, batch_keys) in enumerate(batches, 1):
+            logger.info(
+                "Batch %d/%d — %d notes",
+                batch_idx, batch_count, len(batch_notes),
+            )
+
+            # Relire la bank et la synthèse pour les lots suivants
+            # (le lot précédent a pu modifier les fichiers bank)
+            if batch_idx > 1:
+                current_bank = await storage.list_and_get(f"{space_id}/bank/")
+                current_synthesis = await storage.get(f"{space_id}/_synthesis.md")
+
+            # Construire le prompt pour ce lot
+            messages = self._build_prompt(
+                space_id=space_id,
+                rules=rules,
+                synthesis=current_synthesis,
+                notes=batch_notes,
+                bank_files=current_bank,
+            )
+
+            # Appeler le LLM
+            llm_result = await self._call_llm(messages)
+            if llm_result.get("status") == "error":
+                logger.error(
+                    "Batch %d/%d LLM failed: %s — stopping (previous batches OK)",
+                    batch_idx, batch_count, llm_result.get("message"),
+                )
+                break
+
+            # Appliquer les éditions (bank + synthesis + delete notes)
+            # skip_meta=True : on mettra à jour le meta une seule fois à la fin
+            write_result = await self._write_results(
+                space_id=space_id,
+                llm_output=llm_result["data"],
+                bank_files=current_bank,
+                notes_keys=batch_keys,
+                notes_count=len(batch_notes),
+                usage=llm_result.get("usage", {}),
+                skip_meta=True,
+            )
+
+            if write_result.get("status") != "ok":
+                logger.error(
+                    "Batch %d/%d write failed: %s — stopping",
+                    batch_idx, batch_count, write_result.get("message"),
+                )
+                break
+
+            # Accumuler les métriques
+            batches_completed += 1
+            total_notes += write_result.get("notes_processed", 0)
+            total_created += write_result.get("bank_files_created", 0)
+            total_updated += write_result.get("bank_files_updated", 0)
+            total_ops_applied += write_result.get("operations_applied", 0)
+            total_ops_failed += write_result.get("operations_failed", 0)
+            total_tokens += write_result.get("llm_tokens_used", 0)
+            total_prompt_tokens += write_result.get("llm_prompt_tokens", 0)
+            total_completion_tokens += write_result.get("llm_completion_tokens", 0)
+            last_synthesis_size = write_result.get("synthesis_size", 0)
+
+            logger.info(
+                "Batch %d/%d done — %d notes, %d created, %d updated, %d tokens",
+                batch_idx, batch_count,
+                len(batch_notes),
+                write_result.get("bank_files_created", 0),
+                write_result.get("bank_files_updated", 0),
+                write_result.get("llm_tokens_used", 0),
+            )
+
+        # ── Étape 4 : Mettre à jour le meta (une seule fois) ─
+        if total_notes > 0:
+            now = datetime.now(timezone.utc).isoformat()
+            meta = await storage.get_json(f"{space_id}/_meta.json") or {}
+            meta["last_consolidation"] = now
+            meta["consolidation_count"] = meta.get("consolidation_count", 0) + 1
+            meta["total_notes_processed"] = (
+                meta.get("total_notes_processed", 0) + total_notes
+            )
+            await storage.put_json(f"{space_id}/_meta.json", meta)
+
+        # Compter les fichiers bank finaux
+        bank_objects = await storage.list_objects(f"{space_id}/bank/")
+        total_bank = len([o for o in bank_objects if not o["Key"].endswith(".keep")])
+
+        duration = round(time.monotonic() - t0, 1)
+        logger.info(
+            "Consolidation done — space=%s agent=%s notes=%d batches=%d/%d "
+            "created=%d updated=%d tokens=%d duration=%.1fs",
+            space_id, agent_label, total_notes,
+            batches_completed, batch_count,
+            total_created, total_updated,
+            total_tokens, duration,
+        )
+
+        return {
+            "status": "ok",
+            "space_id": space_id,
+            "notes_processed": total_notes,
+            "bank_files_updated": total_updated,
+            "bank_files_created": total_created,
+            "bank_files_unchanged": max(0, total_bank - total_created - total_updated),
+            "operations_applied": total_ops_applied,
+            "operations_failed": total_ops_failed,
+            "synthesis_size": last_synthesis_size,
+            "llm_tokens_used": total_tokens,
+            "llm_prompt_tokens": total_prompt_tokens,
+            "llm_completion_tokens": total_completion_tokens,
+            "batches_total": batch_count,
+            "batches_completed": batches_completed,
+            "batch_size": batch_size,
+            "duration_seconds": duration,
+        }
 
     async def _collect_inputs(self, space_id: str, agent: str = "") -> dict:
         """
@@ -448,17 +562,22 @@ Retourne un JSON avec cette structure exacte :
         notes_keys: list[str],
         notes_count: int,
         usage: dict,
+        skip_meta: bool = False,
     ) -> dict:
         """
-        Étape 4 : Appliquer les éditions et écrire les résultats sur S3.
+        Applique les éditions LLM et écrit les résultats sur S3.
 
         Pour chaque file_edit :
         - action "edit" : lire le fichier existant, appliquer les opérations, écrire
         - action "create" : écrire le contenu complet (nouveau fichier)
         - action "rewrite" : écrire le contenu complet (réécriture justifiée)
 
-        Ordre : bank files → synthesis → meta → delete notes.
+        Ordre : bank files → synthesis → [meta si non skip] → delete notes.
         Les notes sont supprimées EN DERNIER (atomicité logique).
+
+        Args:
+            skip_meta: Si True, ne met pas à jour _meta.json (mode batch,
+                       le meta est mis à jour une seule fois à la fin)
 
         Returns:
             Métriques de consolidation
@@ -478,7 +597,7 @@ Retourne un JSON avec cette structure exacte :
 
         # 4a. Appliquer chaque édition de fichier
         for file_edit in llm_output.get("file_edits", []):
-            filename = file_edit.get("filename", "")
+            filename = _sanitize_filename(file_edit.get("filename", ""))
             action = file_edit.get("action", "edit")
 
             if not filename:
@@ -563,14 +682,16 @@ Retourne un JSON avec cette structure exacte :
         )
         await storage.put(f"{space_id}/_synthesis.md", synthesis_md)
 
-        # 4c. Mettre à jour _meta.json
-        meta = await storage.get_json(f"{space_id}/_meta.json") or {}
-        meta["last_consolidation"] = now
-        meta["consolidation_count"] = meta.get("consolidation_count", 0) + 1
-        meta["total_notes_processed"] = (
-            meta.get("total_notes_processed", 0) + notes_count
-        )
-        await storage.put_json(f"{space_id}/_meta.json", meta)
+        # 4c. Mettre à jour _meta.json (sauf en mode batch où le meta
+        #     est mis à jour une seule fois à la fin par consolidate())
+        if not skip_meta:
+            meta = await storage.get_json(f"{space_id}/_meta.json") or {}
+            meta["last_consolidation"] = now
+            meta["consolidation_count"] = meta.get("consolidation_count", 0) + 1
+            meta["total_notes_processed"] = (
+                meta.get("total_notes_processed", 0) + notes_count
+            )
+            await storage.put_json(f"{space_id}/_meta.json", meta)
 
         # 4d. Supprimer les notes live traitées (EN DERNIER)
         await storage.delete_many(notes_keys)
@@ -615,6 +736,98 @@ Retourne un JSON avec cette structure exacte :
             }
         except Exception as e:
             return {"status": "error", "message": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────
+# Sanitisation des noms de fichiers LLM
+# ─────────────────────────────────────────────────────────────
+
+# Caractères Unicode invisibles que les LLMs insèrent parfois dans les
+# noms de fichiers (surtout dans les réponses JSON longues — "drift").
+# Leur présence crée des clés S3 visuellement identiques mais techniquement
+# différentes, rendant les fichiers illisibles par bank_read.
+_INVISIBLE_CHARS = frozenset({
+    '\u200b',  # Zero Width Space
+    '\u200c',  # Zero Width Non-Joiner
+    '\u200d',  # Zero Width Joiner
+    '\u200e',  # Left-to-Right Mark
+    '\u200f',  # Right-to-Left Mark
+    '\u202a',  # Left-to-Right Embedding
+    '\u202b',  # Right-to-Left Embedding
+    '\u202c',  # Pop Directional Formatting
+    '\u202d',  # Left-to-Right Override
+    '\u202e',  # Right-to-Left Override
+    '\u2060',  # Word Joiner
+    '\u2061',  # Function Application
+    '\u2062',  # Invisible Times
+    '\u2063',  # Invisible Separator
+    '\u2064',  # Invisible Plus
+    '\ufeff',  # Byte Order Mark (ZWNBS)
+    '\u00ad',  # Soft Hyphen
+    '\u034f',  # Combining Grapheme Joiner
+    '\u061c',  # Arabic Letter Mark
+    '\u180e',  # Mongolian Vowel Separator
+})
+
+# Caractères Unicode ressemblant à des tirets mais qui ne sont pas
+# le tiret ASCII standard (U+002D). Normalisés vers '-'.
+_HYPHEN_LIKE = frozenset({
+    '\u2010',  # Hyphen
+    '\u2011',  # Non-Breaking Hyphen
+    '\u2012',  # Figure Dash
+    '\u2013',  # En Dash
+    '\u2014',  # Em Dash
+    '\u2015',  # Horizontal Bar
+    '\u2212',  # Minus Sign
+    '\ufe58',  # Small Em Dash
+    '\ufe63',  # Small Hyphen-Minus
+    '\uff0d',  # Fullwidth Hyphen-Minus
+})
+
+
+def _sanitize_filename(filename: str) -> str:
+    """
+    Nettoie un nom de fichier généré par le LLM.
+
+    Supprime les caractères Unicode invisibles et normalise les tirets
+    Unicode vers le tiret ASCII standard (U+002D).
+
+    Bug découvert le 13/03/2026 : le LLM qwen3-2507:235b insère des
+    caractères invisibles dans les noms de fichiers à partir du ~8ème
+    fichier dans les réponses JSON longues. Ces caractères rendent
+    les fichiers illisibles par bank_read (qui reconstruit la clé S3
+    manuellement) alors que bank_read_all fonctionne (utilise les
+    vraies clés S3 depuis list_objects).
+
+    Args:
+        filename: Nom de fichier brut issu du JSON LLM
+
+    Returns:
+        Nom de fichier nettoyé (ASCII + caractères courants uniquement)
+    """
+    chars = []
+    removed = 0
+    normalized = 0
+
+    for ch in filename:
+        if ch in _INVISIBLE_CHARS:
+            removed += 1
+            continue
+        elif ch in _HYPHEN_LIKE:
+            chars.append('-')
+            normalized += 1
+        else:
+            chars.append(ch)
+
+    sanitized = ''.join(chars).strip()
+
+    if removed > 0 or normalized > 0:
+        logger.warning(
+            "Filename sanitized: %r → %r (removed %d invisible, normalized %d hyphens)",
+            filename, sanitized, removed, normalized,
+        )
+
+    return sanitized
 
 
 # ─────────────────────────────────────────────────────────────

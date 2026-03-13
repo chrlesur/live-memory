@@ -214,7 +214,7 @@ async def suite_recette(admin: MCPClient, url: str, do_cleanup: bool):
     pause("Consolidation OK → Bank")
 
     # 6. Lire la bank
-    section("Recette 6/7 — Lecture bank")
+    section("Recette 6/8 — Lecture bank")
     try:
         r = await agent.call_tool("bank_read_all", {"space_id": RECETTE_SPACE})
         files = r.get("files", [])
@@ -226,7 +226,34 @@ async def suite_recette(admin: MCPClient, url: str, do_cleanup: bool):
     except Exception as e:
         test_fail("bank_read_all", str(e))
 
-    # 7. Cleanup
+    # 7. Cohérence bank : vérifier que bank_read fonctionne pour CHAQUE fichier
+    #    (détecte le bug des caractères Unicode invisibles dans les noms S3)
+    section("Recette 7/8 — Cohérence bank_read vs bank_list")
+    try:
+        r_list = await agent.call_tool("bank_list", {"space_id": RECETTE_SPACE})
+        bank_files = r_list.get("files", [])
+        readable = 0
+        broken = []
+        for bf in bank_files:
+            fname = bf.get("filename", "")
+            r_read = await agent.call_tool("bank_read", {
+                "space_id": RECETTE_SPACE, "filename": fname,
+            })
+            if r_read.get("status") == "ok":
+                readable += 1
+            else:
+                broken.append(fname)
+
+        if broken:
+            test_fail("bank coherence", f"{len(broken)} fichier(s) illisibles via bank_read : {broken}")
+        elif readable > 0:
+            test_pass("bank coherence", f"{readable}/{len(bank_files)} fichiers lisibles via bank_read")
+        else:
+            test_skip("bank coherence", "aucun fichier bank")
+    except Exception as e:
+        test_fail("bank coherence", str(e))
+
+    # 8. Cleanup
     if do_cleanup:
         section("Recette 7/7 — Cleanup")
         try:

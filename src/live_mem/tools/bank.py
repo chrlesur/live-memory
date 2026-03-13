@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Outils MCP — Catégorie Bank (4 outils).
+Outils MCP — Catégorie Bank (5 outils).
 
-Memory Bank consolidée : lire, lister, consolider via LLM.
+Memory Bank consolidée : lire, lister, consolider via LLM, réparer.
 
 Permissions :
     - bank_read        🔑 (read)  — Lit un fichier bank spécifique
     - bank_read_all    🔑 (read)  — Lit toute la bank (démarrage agent)
     - bank_list        🔑 (read)  — Liste les fichiers bank (sans contenu)
     - bank_consolidate ✏️ (write) — Déclenche la consolidation LLM
+    - bank_repair      👑 (admin) — Répare les noms de fichiers corrompus par le LLM
 
 La consolidation est l'opération qui transforme les notes live en
 fichiers bank structurés. Un seul consolidate à la fois par espace
@@ -294,4 +295,117 @@ def register(mcp: FastMCP) -> int:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    return 4  # Nombre d'outils enregistrés
+    @mcp.tool()
+    async def bank_repair(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace à réparer")],
+        dry_run: Annotated[bool, Field(default=True, description="True = scan seul (liste les fichiers à réparer), False = applique les corrections")] = True,
+    ) -> dict:
+        """
+        Répare les noms de fichiers bank contenant des caractères Unicode
+        invisibles (bug LLM drift sur réponses JSON longues).
+
+        Le LLM insère parfois des caractères invisibles (Zero Width Space,
+        Soft Hyphen, BOM, etc.) dans les noms de fichiers, rendant ceux-ci
+        illisibles par bank_read et l'interface web /live.
+
+        L'outil scanne tous les fichiers bank via list_objects (vraies clés
+        S3), sanitise chaque nom, et si nécessaire :
+        - Écrit le contenu sous le nom propre
+        - Supprime l'ancien fichier avec le nom corrompu
+
+        ⚠️ Par défaut dry_run=True : scanne et rapporte sans modifier.
+        Passez dry_run=False pour appliquer les corrections.
+
+        Args:
+            space_id: Espace à réparer
+            dry_run: True = scan seul, False = correction effective
+
+        Returns:
+            Liste des fichiers réparés avec ancien/nouveau nom
+        """
+        from ..auth.context import check_access, check_admin_permission
+        from ..core.storage import get_storage
+        from ..core.consolidator import _sanitize_filename
+
+        try:
+            access_err = check_access(space_id)
+            if access_err:
+                return access_err
+
+            admin_err = check_admin_permission()
+            if admin_err:
+                return admin_err
+
+            storage = get_storage()
+
+            # Vérifier l'existence de l'espace
+            if not await storage.exists(f"{space_id}/_meta.json"):
+                return {
+                    "status": "not_found",
+                    "message": f"Espace '{space_id}' introuvable",
+                }
+
+            # Lister les vrais fichiers bank sur S3
+            objects = await storage.list_objects(f"{space_id}/bank/")
+            repairs = []
+            skipped = 0
+
+            for obj in objects:
+                key = obj["Key"]
+                if key.endswith(".keep"):
+                    continue
+
+                original_filename = key.split("/")[-1]
+                sanitized_filename = _sanitize_filename(original_filename)
+
+                if sanitized_filename == original_filename:
+                    skipped += 1
+                    continue
+
+                # Ce fichier a besoin d'être réparé
+                repair_info = {
+                    "original": original_filename,
+                    "sanitized": sanitized_filename,
+                    "original_key": key,
+                    "sanitized_key": f"{space_id}/bank/{sanitized_filename}",
+                }
+
+                if not dry_run:
+                    # Lire le contenu via la vraie clé S3
+                    content = await storage.get(key)
+                    if content is not None:
+                        # Écrire avec le nom propre
+                        await storage.put(
+                            f"{space_id}/bank/{sanitized_filename}",
+                            content,
+                        )
+                        # Supprimer l'ancien
+                        await storage.delete(key)
+                        repair_info["status"] = "repaired"
+                    else:
+                        repair_info["status"] = "error_read"
+                else:
+                    repair_info["status"] = "would_repair"
+
+                repairs.append(repair_info)
+
+            mode = "dry-run" if dry_run else "applied"
+            return {
+                "status": "ok",
+                "space_id": space_id,
+                "mode": mode,
+                "files_scanned": skipped + len(repairs),
+                "files_ok": skipped,
+                "files_to_repair": len(repairs),
+                "repairs": repairs,
+                "message": (
+                    f"{len(repairs)} fichier(s) à réparer sur {skipped + len(repairs)} scannés. "
+                    + ("Passez dry_run=False pour appliquer." if dry_run and repairs else "")
+                    + ("Corrections appliquées." if not dry_run and repairs else "")
+                    + ("Tous les fichiers sont OK." if not repairs else "")
+                ),
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    return 5  # Nombre d'outils enregistrés

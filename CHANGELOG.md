@@ -5,6 +5,28 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.8.0] — 2026-03-13
+
+### Ajouté — Consolidation par lots et protection Unicode
+
+- **Consolidation par lots (batches)** — Les notes sont désormais traitées par lots de `CONSOLIDATION_BATCH_SIZE` (défaut 5) au lieu d'être envoyées toutes en une seule passe au LLM. Chaque lot relit la bank à jour depuis S3 (intégration incrémentale). Si un lot échoue, les précédents sont déjà intégrés (résilience). Avec 60 notes → 12 batches de 5 → 12 appels LLM courts au lieu d'1 énorme.
+- **Sanitisation des filenames LLM (`_sanitize_filename`)** — Supprime automatiquement 20 types de caractères Unicode invisibles (ZWSP, BOM, Soft Hyphen…) et normalise 10 types de tirets Unicode vers le tiret ASCII standard, avant chaque écriture S3. Corrige le bug de "drift Unicode" du LLM sur les réponses JSON longues (fichiers bank illisibles par `bank_read` et l'interface `/live`).
+- **Outil `bank_repair`** 👑 (admin) — 35ème outil MCP. Scanne les fichiers bank existants, détecte les noms corrompus par des caractères Unicode invisibles, et les répare (dry_run par défaut).
+- **Test de cohérence bank** dans `test_recette.py` — Après consolidation, vérifie que chaque fichier retourné par `bank_list` est lisible via `bank_read` (étape 7/8 de la suite recette).
+- **`CONSOLIDATION_BATCH_SIZE`** dans `config.py` — Nouvelle variable d'environnement configurable (défaut 5).
+- **Nouvelles métriques de consolidation** : `batches_total`, `batches_completed`, `batch_size` dans la réponse de `bank_consolidate`.
+
+### Corrigé
+
+- **Bug filenames Unicode invisibles** — Le LLM `qwen3-2507:235b` insère parfois des caractères Unicode invisibles dans les noms de fichiers à partir du ~8ème fichier dans les réponses JSON longues, rendant ces fichiers illisibles. Corrigé par la sanitisation systématique + la consolidation par lots qui produit des réponses plus courtes.
+
+### Modifié
+
+- **`_write_results()` accepte `skip_meta=True`** — En mode batch, le meta est mis à jour une seule fois à la fin de la consolidation (pas à chaque lot).
+- **35 outils MCP** (était 34) — catégorie Bank passe de 4 à 5 outils.
+
+---
+
 ## [0.7.7] — 2026-03-13
 
 ### Ajouté — Outil MCP `space_update` (modification des métadonnées d'un espace)

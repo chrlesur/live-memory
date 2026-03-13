@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # ─── Consolidation ────────────────────────────────────────
     consolidation_timeout: int = 600        # Timeout par appel LLM (secondes)
     consolidation_max_notes: int = 500      # Max notes traitées par consolidation
+    consolidation_batch_size: int = 5       # Notes par lot LLM (réponses courtes = moins de drift)
 
     # extra="ignore" permet d'avoir des variables dans .env (SITE_ADDRESS, WAF_PORT)
     # qui ne sont pas déclarées dans Settings (utilisées par Docker/Caddy uniquement)

@@ -16,7 +16,7 @@ Live Memory est déployé via Docker Compose avec 2 services :
 **Différence avec graph-memory** : Pas de Neo4j ni Qdrant → déploiement beaucoup plus léger.
 
 **Fonctionnalités exposées** :
-- 30 outils MCP via Streamable HTTP (`/mcp`)
+- 35 outils MCP via Streamable HTTP (`/mcp`)
 - Interface web de visualisation (`/live`)
 - 5 endpoints API REST (`/api/*`)
 

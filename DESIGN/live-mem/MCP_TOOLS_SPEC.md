@@ -1,19 +1,19 @@
 # Spécification des Outils MCP — Live Memory
 
-> **Version** : 0.5.0 | **Date** : 2026-03-08 | **Auteur** : Cloud Temple
+> **Version** : 0.8.0 | **Date** : 2026-03-13 | **Auteur** : Cloud Temple
 
 ---
 
 ## Vue d'ensemble
 
-Live Memory expose **30 outils MCP** répartis en 7 catégories :
+Live Memory expose **35 outils MCP** répartis en 7 catégories :
 
 | Catégorie       | Outils | Description                                      |
 | --------------- | ------ | ------------------------------------------------ |
 | **System** (2)  | 2      | Santé & identité du service                      |
 | **Space** (7)   | 7      | CRUD des espaces mémoire                         |
 | **Live** (3)    | 3      | Notes en temps réel                              |
-| **Bank** (4)    | 4      | Memory Bank consolidée via LLM                   |
+| **Bank** (5)    | 4      | Memory Bank consolidée via LLM                   |
 | **Graph** (4)   | 4      | Pont vers Graph Memory (mémoire long terme)      |
 | **Backup** (5)  | 5      | Sauvegarde & restauration                        |
 | **Admin** (5)   | 5      | Gestion des tokens + maintenance (GC)            |
@@ -63,7 +63,7 @@ async def system_health() -> dict:
 {
   "status": "ok",
   "service_name": "Live Memory",
-  "version": "0.5.0",
+  "version": "0.8.0",
   "uptime_seconds": 3600,
   "services": {
     "s3": {"status": "ok", "latency_ms": 45},
@@ -89,12 +89,12 @@ async def system_about() -> dict:
 {
   "status": "ok",
   "name": "Live Memory",
-  "version": "0.5.0",
+  "version": "0.8.0",
   "description": "Mémoire de travail partagée pour agents IA collaboratifs",
   "author": "Cloud Temple",
   "documentation": "https://github.com/chrlesur/live-memory",
   "python_version": "3.14.3",
-  "tools_count": 30,
+  "tools_count": 35,
   "tools": [
     {"name": "system_health", "description": "Vérifie l'état de santé..."},
     ...
@@ -744,4 +744,4 @@ async def admin_gc_notes(
 
 ---
 
-*Document mis à jour le 8 mars 2026 — Live Memory v0.5.0*
+*Document mis à jour le 8 mars 2026 — Live Memory v0.8.0*

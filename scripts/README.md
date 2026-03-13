@@ -1,6 +1,6 @@
 # 🖥️ Live Memory CLI, Shell & Tests
 
-> CLI scriptable, shell interactif et scripts de test pour Live Memory MCP v0.7.7.
+> CLI scriptable, shell interactif et scripts de test pour Live Memory MCP v0.8.0.
 
 ---
 
@@ -67,7 +67,7 @@ Script unifié avec **4 suites sélectionnables** par ligne de commande :
 # Lister les suites disponibles
 python scripts/test_recette.py --list
 
-# TOUTES les suites (44 tests, ~60s)
+# TOUTES les suites (50 tests, ~75s)
 python scripts/test_recette.py --url http://localhost:8085
 
 # Juste une suite
@@ -92,7 +92,7 @@ python scripts/test_recette.py --no-cleanup                  # Conserver les don
 | `qualite` | 19 | Tests des outils MCP : system, admin, space, live, bank, backup, GC |
 | `graph` | ~10 | Pont vers Graph Memory : connect, push, status, disconnect (optionnel, nécessite `--graph-url` et `--graph-token`) |
 
-**Résultat attendu** : 44 PASS, 0 FAIL (sans graph). Avec graph : ~54 PASS.
+**Résultat attendu** : 50 PASS, 0 FAIL (sans graph). Avec graph : ~54 PASS.
 
 ```bash
 # Suite graph (nécessite Graph Memory en cours d'exécution)
@@ -132,4 +132,4 @@ scripts/
 
 ---
 
-*Live Memory CLI v0.7.7*
+*Live Memory CLI v0.8.0*
