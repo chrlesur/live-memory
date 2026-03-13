@@ -66,6 +66,53 @@ def show_health_result(result: dict):
     console.print(table)
 
 
+def show_whoami_result(result: dict):
+    """Affiche le résultat de system_whoami."""
+    auth_type = result.get("auth_type", "?")
+    type_icon = "🔑" if auth_type == "bootstrap" else "🏷️"
+    perms = result.get("permissions", [])
+    perm_str = ", ".join(perms) if perms else "aucune"
+    # Icônes de permissions
+    perm_icons = []
+    if "read" in perms:
+        perm_icons.append("🔑 read")
+    if "write" in perms:
+        perm_icons.append("✏️ write")
+    if "admin" in perms:
+        perm_icons.append("👑 admin")
+    perm_display = "  ".join(perm_icons) if perm_icons else perm_str
+
+    spaces = result.get("allowed_spaces") or result.get("space_ids") or []
+    spaces_str = ", ".join(spaces) if spaces else "[dim]tous[/dim]"
+
+    lines = [
+        f"[bold]Identité :[/bold] [cyan bold]{result.get('client_name', '?')}[/cyan bold]",
+        f"[bold]Type     :[/bold] {type_icon} {auth_type}",
+        f"[bold]Droits   :[/bold] {perm_display}",
+        f"[bold]Espaces  :[/bold] {spaces_str}",
+    ]
+
+    # Métadonnées supplémentaires pour les tokens S3
+    if result.get("email"):
+        lines.append(f"[bold]Email    :[/bold] {result['email']}")
+    if result.get("token_hash"):
+        lines.append(f"[bold]Hash     :[/bold] [dim]{result['token_hash']}[/dim]")
+    if result.get("created_at"):
+        lines.append(f"[bold]Créé le  :[/bold] {result['created_at'][:19]}")
+    expires = result.get("expires_at")
+    if expires:
+        lines.append(f"[bold]Expire   :[/bold] {expires[:19]}")
+    elif result.get("auth_type") == "token":
+        lines.append(f"[bold]Expire   :[/bold] jamais")
+    if result.get("note"):
+        lines.append(f"\n[dim italic]{result['note']}[/dim italic]")
+
+    console.print(Panel.fit(
+        "\n".join(lines),
+        title="👤 Qui suis-je ?", border_style="cyan",
+    ))
+
+
 def show_about_result(result: dict):
     """Affiche le résultat de system_about."""
     console.print(Panel.fit(

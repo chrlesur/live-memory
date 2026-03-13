@@ -5,7 +5,7 @@ Shell interactif — Interface interactive avec autocomplétion.
 Utilise prompt_toolkit pour l'autocomplétion et l'historique,
 et Rich pour l'affichage coloré.
 
-Commandes : help, health, about, space, live, bank, token, backup, quit.
+Commandes : help, health, whoami, about, space, live, bank, token, backup, quit.
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from pathlib import Path
 from .client import MCPClient
 from .display import (
     console, show_error, show_success, show_warning, show_json,
-    show_health_result, show_about_result,
+    show_health_result, show_whoami_result, show_about_result,
     show_space_created, show_space_list, show_space_info, show_rules, show_notes,
     show_bank_list, show_bank_content, show_consolidation_result,
     show_graph_connected, show_graph_status, show_graph_push_result, show_graph_disconnected,
@@ -33,6 +33,7 @@ from .display import (
 SHELL_COMMANDS = {
     "help": "Afficher l'aide",
     "health": "État de santé",
+    "whoami": "Identité du token courant (nom, permissions, espaces)",
     "about": "Informations sur le service",
     "space create": "Créer un espace (space create <id> <desc> <rules>)",
     "space list": "Lister les espaces",
@@ -104,6 +105,10 @@ async def dispatch(client: MCPClient, user_input: str, json_output: bool):
     if cmd == "health":
         result = await client.call_tool("system_health", {})
         (show_json if json_output else show_health_result)(result)
+
+    elif cmd == "whoami":
+        result = await client.call_tool("system_whoami", {})
+        (show_json if json_output else show_whoami_result)(result)
 
     elif cmd == "about":
         result = await client.call_tool("system_about", {})

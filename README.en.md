@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-0.7.4-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.7.5-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -118,7 +118,7 @@ Specifically, agents can:
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   32 tools • Auth Bearer       │
+          │   33 tools • Auth Bearer       │
           │   LLM Consolidation            │
           └──────┬──────────┬──────┬───────┘
                  │          │      │
@@ -258,14 +258,15 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 MCP Tools
 
-32 tools exposed via the MCP protocol (Streamable HTTP), divided into 7 categories.
+33 tools exposed via the MCP protocol (Streamable HTTP), divided into 7 categories.
 
-### System (2 tools)
+### System (3 tools)
 
-| Tool            | Parameters | Description                                      |
-| --------------- | ---------- | ------------------------------------------------ |
-| `system_health` | —          | Health status (S3, LLMaaS, number of spaces)     |
-| `system_about`  | —          | Service identity (version, tools, capabilities)  |
+| Tool            | Parameters | Description                                               |
+| --------------- | ---------- | --------------------------------------------------------- |
+| `system_health` | —          | Health status (S3, LLMaaS, number of spaces)              |
+| `system_whoami` | —          | 👤 Current token identity (name, permissions, spaces)     |
+| `system_about`  | —          | Service identity (version, tools, capabilities)           |
 
 ### Space (7 tools)
 
@@ -503,6 +504,7 @@ export MCP_TOKEN=your_token
 
 ```bash
 python scripts/mcp_cli.py health
+python scripts/mcp_cli.py whoami                       # Current token identity
 python scripts/mcp_cli.py about
 python scripts/mcp_cli.py space list
 python scripts/mcp_cli.py space create my-project --rules-file rules.md
@@ -585,7 +587,7 @@ python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 
 ```
 live-memory/
-├── src/live_mem/              # Source code (32 MCP tools + web interface)
+├── src/live_mem/              # Source code (33 MCP tools + web interface)
 │   ├── server.py              # FastMCP server + middlewares
 │   ├── config.py              # pydantic-settings configuration
 │   ├── auth/                  # Authentication
@@ -608,7 +610,7 @@ live-memory/
 │   │   ├── locks.py           #   asyncio locks per space
 │   │   └── models.py          #   Pydantic models
 │   └── tools/                 # MCP Tools (7 modules)
-│       ├── system.py          #   2 tools (health, about)
+│       ├── system.py          #   3 tools (health, whoami, about)
 │       ├── space.py           #   7 tools (spaces CRUD)
 │       ├── live.py            #   3 tools (notes)
 │       ├── bank.py            #   4 tools (bank + consolidation)
@@ -672,4 +674,4 @@ Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.7.4 — Shared working memory for collaborative AI agents*
+*Live Memory v0.7.5 — Shared working memory for collaborative AI agents*

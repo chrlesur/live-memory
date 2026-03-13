@@ -5,6 +5,25 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.7.5] — 2026-03-13
+
+### Ajouté — Outil MCP `system_whoami` (identité du token courant)
+- **Nouvel outil `system_whoami`** — Permet à tout agent ou utilisateur de connaître l'identité avec laquelle il contacte le serveur MCP. Retourne : `client_name`, `auth_type` (bootstrap/token), `permissions`, `allowed_spaces`, et pour les tokens S3 : `email`, `token_hash`, `created_at`, `expires_at`, `last_used_at`.
+- **CLI Click** : `python scripts/mcp_cli.py whoami` (avec `--json` pour le JSON brut)
+- **Shell interactif** : `whoami` (avec autocomplétion)
+- **Affichage Rich** : panel coloré `👤 Qui suis-je ?` avec icônes de permissions (🔑 read, ✏️ write, 👑 admin)
+- **33 outils MCP** (était 32) — catégorie System passe de 2 à 3 outils
+
+### Fichiers modifiés
+| Fichier | Changements |
+|---------|------------|
+| `src/live_mem/tools/system.py` | Nouvel outil `system_whoami` — lit le contextvar `current_token_info`, enrichit avec les métadonnées du TokenService pour les tokens S3 |
+| `scripts/cli/display.py` | `show_whoami_result()` — panel Rich avec identité, type, droits, espaces, métadonnées token |
+| `scripts/cli/commands.py` | Commande Click `whoami` au niveau racine (comme `health` et `about`) |
+| `scripts/cli/shell.py` | Commande `whoami` dans le dispatcher, SHELL_COMMANDS et autocomplétion |
+
+---
+
 ## [0.7.4] — 2026-03-13
 
 ### Corrigé — Sécurité `bank_consolidate` (incohérence permissions)

@@ -18,7 +18,7 @@ from . import BASE_URL, TOKEN
 from .client import MCPClient
 from .display import (
     console, show_error, show_success, show_warning, show_json,
-    show_health_result, show_about_result,
+    show_health_result, show_whoami_result, show_about_result,
     show_space_created, show_space_list, show_space_info, show_rules, show_notes,
     show_bank_list, show_bank_content, show_consolidation_result,
     show_graph_connected, show_graph_status, show_graph_push_result, show_graph_disconnected,
@@ -73,6 +73,14 @@ def cli(ctx, url, token):
 def health_cmd(ctx, jflag):
     """❤️  État de santé du service."""
     _run_tool(ctx, "system_health", {}, show_health_result, jflag)
+
+
+@cli.command("whoami")
+@click.option("--json", "-j", "jflag", is_flag=True, help="JSON brut")
+@click.pass_context
+def whoami_cmd(ctx, jflag):
+    """👤 Identité du token courant."""
+    _run_tool(ctx, "system_whoami", {}, show_whoami_result, jflag)
 
 
 @cli.command("about")

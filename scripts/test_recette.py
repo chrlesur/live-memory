@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Script de recette global — Live Memory v0.7.1
+Script de recette global — Live Memory v0.7.5
 
 Script unifié avec sélection de suites par ligne de commande.
 
@@ -550,7 +550,7 @@ async def suite_isolation(admin: MCPClient, url: str, do_cleanup: bool):
 
 # ═══════════════════════════════════════════════════════════════
 #
-#  SUITE : QUALITE — Tests des 32 outils MCP
+#  SUITE : QUALITE — Tests des 33 outils MCP
 #
 # ═══════════════════════════════════════════════════════════════
 
@@ -581,6 +581,16 @@ async def suite_qualite(admin: MCPClient, url: str, do_cleanup: bool):
             test_fail("system_about", str(r))
     except Exception as e:
         test_fail("system_about", str(e))
+
+    try:
+        r = await admin.call_tool("system_whoami", {})
+        if r.get("status") == "ok" and r.get("client_name"):
+            perms = ", ".join(r.get("permissions", []))
+            test_pass("system_whoami", f"identity={r['client_name']}, type={r.get('auth_type','?')}, perms={perms}")
+        else:
+            test_fail("system_whoami", str(r))
+    except Exception as e:
+        test_fail("system_whoami", str(e))
 
     # Admin tokens
     section("Qualité — Admin tokens")
@@ -896,7 +906,7 @@ async def run_all(url: str, bootstrap_key: str, suites_to_run: list, do_cleanup:
     admin = MCPClient(base_url=url, token=bootstrap_key, timeout=600, call_delay=CALL_DELAY)
     t0 = time.monotonic()
 
-    header(f"🏗️  RECETTE GLOBALE — Live Memory v0.7.1")
+    header(f"🏗️  RECETTE GLOBALE — Live Memory v0.7.5")
     print(f"  {C}Serveur :{Z} {url}")
     print(f"  {C}Suites  :{Z} {', '.join(suites_to_run)}")
 
@@ -953,7 +963,7 @@ def main():
     global VERBOSE, STEP_MODE
 
     ap = argparse.ArgumentParser(
-        description="Recette globale — Live Memory v0.7.1",
+        description="Recette globale — Live Memory v0.7.5",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemples :

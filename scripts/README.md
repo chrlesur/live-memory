@@ -1,6 +1,6 @@
 # 🖥️ Live Memory CLI, Shell & Tests
 
-> CLI scriptable, shell interactif et scripts de test pour Live Memory MCP v0.7.2.
+> CLI scriptable, shell interactif et scripts de test pour Live Memory MCP v0.7.5.
 
 ---
 
@@ -22,6 +22,7 @@ export MCP_TOKEN=votre_token_secret     # Token d'authentification
 
 ```bash
 python scripts/mcp_cli.py health                      # État de santé
+python scripts/mcp_cli.py whoami                       # Identité du token courant
 python scripts/mcp_cli.py about                        # Informations service
 python scripts/mcp_cli.py space list                   # Lister les espaces
 python scripts/mcp_cli.py space create id desc rules   # Créer un espace
@@ -130,4 +131,4 @@ scripts/
 
 ---
 
-*Live Memory CLI v0.7.2*
+*Live Memory CLI v0.7.5*

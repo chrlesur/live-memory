@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Outils MCP — Catégorie System (2 outils).
+Outils MCP — Catégorie System (3 outils).
 
-Ces outils ne nécessitent aucune authentification (publics).
-
-Outils :
+Outils publics (pas d'authentification) :
     - system_health : vérifie S3, LLMaaS, compte les espaces
     - system_about  : version, outils disponibles, infos système
+
+Outils authentifiés :
+    - system_whoami : identité du token courant (nom, permissions, espaces)
 """
 
 import time
@@ -25,7 +26,7 @@ def register(mcp: FastMCP) -> int:
         mcp: Instance FastMCP
 
     Returns:
-        Nombre d'outils enregistrés (2)
+        Nombre d'outils enregistrés (3)
     """
 
     @mcp.tool()
@@ -143,7 +144,59 @@ def register(mcp: FastMCP) -> int:
             "tools": tools,
         }
 
-    return 2  # Nombre d'outils enregistrés
+    @mcp.tool()
+    async def system_whoami() -> dict:
+        """
+        Identité du token courant utilisé pour contacter le serveur.
+
+        Retourne le nom de l'agent, le type d'authentification (bootstrap
+        ou token S3), les permissions, les espaces autorisés, et les
+        métadonnées du token (email, dates de création/expiration).
+
+        Nécessite une authentification valide (read minimum).
+
+        Returns:
+            Identité complète du token courant
+        """
+        from ..auth.context import current_token_info
+
+        token_info = current_token_info.get()
+        if token_info is None:
+            return {"status": "error", "message": "Authentification requise"}
+
+        result = {
+            "status": "ok",
+            "client_name": token_info.get("client_name", "anonymous"),
+            "auth_type": token_info.get("type", "unknown"),
+            "permissions": token_info.get("permissions", []),
+            "allowed_spaces": token_info.get("allowed_resources", []),
+        }
+
+        # Pour les tokens S3, enrichir avec les métadonnées du store
+        token_hash = token_info.get("token_hash")
+        if token_hash and token_info.get("type") == "token":
+            try:
+                from ..core.tokens import get_token_service
+                store_data = await get_token_service().list_tokens()
+                for t in store_data.get("tokens", []):
+                    if t.get("hash") == token_hash:
+                        result["email"] = t.get("email", "")
+                        result["token_hash"] = token_hash
+                        result["created_at"] = t.get("created_at", "")
+                        result["expires_at"] = t.get("expires_at")
+                        result["last_used_at"] = t.get("last_used_at", "")
+                        result["space_ids"] = t.get("space_ids", [])
+                        break
+            except Exception:
+                pass  # Enrichissement best-effort
+
+        # Pour le bootstrap key, indiquer clairement
+        if token_info.get("type") == "bootstrap":
+            result["note"] = "Bootstrap key — accès admin total, pas de token S3"
+
+        return result
+
+    return 3  # Nombre d'outils enregistrés
 
 
 # ─────────────────────────────────────────────────────────────
