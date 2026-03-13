@@ -5,6 +5,25 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.7.3] — 2026-03-13
+
+### Amélioré — Template `.clinerules/standard.memory.bank.md` (DRY)
+- **Centralisation de la configuration** — Le nom du space (`SPACE`) et de l'agent (`AGENT`) ne sont plus hardcodés à chaque ligne. Ils sont définis **une seule fois** dans un bloc de configuration en haut du fichier, puis référencés partout via les placeholders `{SPACE}` et `{AGENT}`.
+- **Avant** : `live-mem` apparaissait 12 fois et `cline-dev` 9 fois — chaque exemple, règle et commande devait être modifié manuellement pour réutiliser le template.
+- **Après** : 2 lignes à modifier pour adapter le template à n'importe quel projet/agent.
+- **Exemples simplifiés** — Les 6 exemples `live_note` répétitifs (un par catégorie) sont remplacés par un seul exemple générique avec `<catégorie>`.
+- **Guide d'intégration Cline** (`GUIDE_INTEGRATION_CLINE.md`) mis à jour pour référencer le nouveau format template avec `{SPACE}/{AGENT}`.
+
+### Fichiers modifiés
+| Fichier | Changements |
+|---------|------------|
+| `.clinerules/standard.memory.bank.md` | Refactoring complet : config centralisée + placeholders `{SPACE}`/`{AGENT}` |
+| `GUIDE_INTEGRATION_CLINE.md` | Version 0.7.3, section Custom Instructions mise à jour avec le template `{SPACE}/{AGENT}` |
+| `README.md` | Badge version 0.7.3 |
+| `README.en.md` | Badge version 0.7.3 |
+
+---
+
 ## [0.7.2] — 2026-03-12
 
 ### Corrigé — Bug CLI `token create` (parsing des options)

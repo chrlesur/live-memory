@@ -1,6 +1,6 @@
 # 🔌 Guide d'intégration Live Memory avec Cline (VS Code / VSCodium)
 
-> **Version** : 0.5.0 | **Date** : 2026-03-08
+> **Version** : 0.7.3 | **Date** : 2026-03-13
 
 Ce guide détaille pas à pas comment connecter **Cline** (l'agent IA dans VS Code ou VSCodium) à **Live Memory** pour lui donner une mémoire de travail partagée et persistante.
 
@@ -210,37 +210,54 @@ Pour que Cline utilise automatiquement Live Memory, ajoutez des **Custom Instruc
 
 Dans Cline : **Settings** → **Custom Instructions** (ou dans le fichier `.clinerules` de votre projet).
 
-### 5.2 Instructions recommandées
+### 5.2 Instructions recommandées (template `{SPACE}/{AGENT}`)
 
-Ajoutez ces instructions dans les **Custom Instructions** de Cline ou dans un fichier `.clinerules/live-memory.md` à la racine de votre projet :
+Copiez le fichier **`.clinerules/standard.memory.bank.md`** à la racine de votre projet. Ce template utilise des **placeholders** `{SPACE}` et `{AGENT}` — il suffit de modifier **2 lignes** en haut du fichier pour l'adapter à n'importe quel projet :
 
 ```markdown
-# Live Memory — Instructions
+# Cline's Memory Bank — Live Memory MCP
 
-Tu as accès à un serveur Live Memory via MCP. C'est ta mémoire de travail partagée.
+Ma mémoire se réinitialise complètement entre les sessions. Je dépends ENTIÈREMENT
+de la Memory Bank pour comprendre le projet et continuer efficacement.
 
-## Au démarrage de chaque tâche
-1. Appelle `bank_read_all` avec `space_id="mon-projet"` pour charger tout le contexte
-2. Lis attentivement le contenu de la Memory Bank avant de commencer
+## 🔌 Configuration (à modifier par projet)
 
-## Pendant le travail
-- Utilise `live_note` pour enregistrer tes observations, décisions et progrès :
-  - `category="observation"` pour les constats factuels
-  - `category="decision"` pour les choix techniques
-  - `category="todo"` pour les tâches à faire
-  - `category="progress"` pour l'avancement
-  - `category="issue"` pour les problèmes rencontrés
-- Passe toujours `agent="cline-dev"` et `space_id="mon-projet"`
+Ma mémoire persistante est gérée par le serveur MCP **Live Memory** (`my-live-mem`).
 
-## En fin de session (ou après un bloc de travail significatif)
-- Appelle `bank_consolidate` avec `space_id="mon-projet"` et `agent="cline-dev"`
-- Cela synthétise tes notes dans la Memory Bank via LLM
+> **⚙️ Les 2 seules valeurs à personnaliser :**
+>
+> - **SPACE** = `mon-projet`       ← Remplacez par votre space_id
+> - **AGENT** = `cline-dev`        ← Remplacez par votre nom d'agent
+>
+> Toutes les instructions ci-dessous utilisent `{SPACE}` et `{AGENT}`
+> — je les substitue automatiquement par les valeurs ci-dessus.
 
-## Règles
-- N'écris JAMAIS directement dans la bank — seule la consolidation LLM le fait
-- Écris des notes fréquentes et atomiques (1 note = 1 fait/décision/todo)
-- Utilise `live_read` pour voir ce que d'autres agents ont noté
+## 📖 Au démarrage de CHAQUE tâche (OBLIGATOIRE)
+
+1. Appeler `space_rules("{SPACE}")` pour lire les rules
+2. Appeler `bank_read_all("{SPACE}")` pour charger TOUT le contexte
+3. Lire attentivement le contenu avant de commencer
+
+## 📝 Pendant le travail
+
+live_note(space_id="{SPACE}", category="<catégorie>", content="...", agent="{AGENT}")
+
+## 🧠 En fin de session
+
+bank_consolidate(space_id="{SPACE}", agent="{AGENT}")
+
+## ⚠️ Règles impératives
+
+1. Ne JAMAIS écrire directement dans la bank
+2. Toujours passer `agent="{AGENT}"` et `space_id="{SPACE}"`
+3. Écrire des notes atomiques après chaque étape importante
+4. Consolider en fin de session
+5. Lire la bank au démarrage
 ```
+
+> 💡 **Pour un nouveau projet** : copiez ce fichier, changez les 2 lignes `SPACE` et `AGENT`, c'est tout !
+>
+> Le template complet est dans le repo : [`.clinerules/standard.memory.bank.md`](.clinerules/standard.memory.bank.md)
 
 ---
 
@@ -292,18 +309,28 @@ Vous verrez les notes apparaître en temps réel dans la **Live Timeline** et la
 
 ## 📋 Custom Instructions pour Cline
 
-### Version minimale (copier-coller)
+### Version template (recommandée)
+
+Copiez le fichier [`.clinerules/standard.memory.bank.md`](.clinerules/standard.memory.bank.md) dans votre projet, puis modifiez **seulement 2 lignes** :
 
 ```
-Tu as accès à Live Memory (serveur MCP). Space: "mon-projet", agent: "cline-dev".
-- Au démarrage: bank_read_all("mon-projet")
-- Pendant le travail: live_note avec category appropriée
-- En fin de session: bank_consolidate("mon-projet", agent="cline-dev")
+> - **SPACE** = `mon-projet`       ← votre space_id
+> - **AGENT** = `cline-dev`        ← votre nom d'agent
 ```
 
-### Version complète (fichier `.clinerules/live-memory.md`)
+Tout le reste utilise `{SPACE}` et `{AGENT}` — l'agent IA substitue automatiquement.
 
-Voir l'[Étape 5](#-étape-5--donner-des-instructions-à-cline) ci-dessus pour le contenu complet.
+### Version minimaliste (copier-coller dans Custom Instructions)
+
+Si vous ne voulez pas de fichier `.clinerules`, ajoutez simplement dans les Custom Instructions globales :
+
+```
+Tu as accès à Live Memory (serveur MCP).
+- Au démarrage: bank_read_all("{SPACE}") et space_rules("{SPACE}")
+- Pendant le travail: live_note(space_id="{SPACE}", category="...", content="...", agent="{AGENT}")
+- En fin de session: bank_consolidate(space_id="{SPACE}", agent="{AGENT}")
+Où {SPACE} = "mon-projet" et {AGENT} = "cline-dev".
+```
 
 ---
 
@@ -459,4 +486,4 @@ Redémarrez Claude Desktop après la modification. Les 30 outils Live Memory app
 
 ---
 
-*Guide d'intégration Live Memory v0.5.0 — [Documentation complète](README.md)*
+*Guide d'intégration Live Memory v0.7.3 — [Documentation complète](README.md)*

@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.7.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.7.3-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -747,4 +747,4 @@ Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.7.1 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.7.3 — Mémoire de travail partagée pour agents IA collaboratifs*
