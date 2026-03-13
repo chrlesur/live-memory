@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.7.5-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.7.6-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -605,11 +605,16 @@ live-memory/
 ├── waf/                       # WAF Caddy + Coraza
 │   ├── Caddyfile              #   Config WAF + rate limiting
 │   └── Dockerfile             #   Image Caddy + Coraza
+├── RULES/                     # 📐 Modèles de rules pour créer des espaces
+│   ├── README.md              #   Guide d'utilisation + pourquoi les rules sont critiques
+│   ├── standard.memory.bank.md#   Modèle general purpose (6 fichiers, dev/archi/projet)
+│   ├── medical.memory.bank.md #   Modèle suivi médical (7+2 fichiers, fiabilité absolue)
+│   └── presales.memory.bank.md#   Modèle avant-vente B2B (5+N fichiers, personas dynamiques)
 ├── DESIGN/live-mem/           # 9 documents d'architecture
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.7.0
+├── VERSION                    # 0.7.6
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -672,4 +677,4 @@ Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.7.5 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.7.6 — Mémoire de travail partagée pour agents IA collaboratifs*

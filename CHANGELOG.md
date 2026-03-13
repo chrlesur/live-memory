@@ -5,6 +5,27 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.7.6] — 2026-03-13
+
+### Ajouté — Répertoire `RULES/` : modèles de rules pour la création d'espaces
+- **Nouveau répertoire `RULES/`** avec des modèles de rules (templates) prêts à l'emploi pour créer des espaces mémoire via `space_create`.
+- **`RULES/standard.memory.bank.md`** — Modèle **general purpose** pour tout projet logiciel. 6 fichiers obligatoires (projectbrief, productContext, activeContext, systemPatterns, techContext, progress). C'est le modèle utilisé par le space `live-mem`.
+- **`RULES/medical.memory.bank.md`** — Modèle **suivi médical**. 7 fichiers obligatoires (profilGeneral, histoireDiagnostic, contexteSante, medicamentationTraitements, specialistesSuivi, profilSante, progression) + 2 optionnels (visualisationDonnees, protocoleUrgence). Inclut une **règle de fiabilité absolue** pour les données biologiques (double vérification, fidélité parfaite, unités conservées).
+- **`RULES/presales.memory.bank.md`** — Modèle **avant-vente B2B**. 5 fichiers de base (proposalContext, activeAnalysis, analysisProgress, rulesLearned, methodologieAnalyse) + fichiers **personas dynamiques** (un par décideur : dirigeant, acheteur, DSI, RSSI, expert). Gestion des contradictions, capitalisation des patterns argumentaires, tracking visuel avec ✅🔄⏱️❓.
+- **`RULES/README.md`** — Documentation complète : explication du rôle des rules, catalogue des modèles, guide d'utilisation, instructions pour créer un modèle personnalisé.
+- **Section "Pourquoi les Rules sont critiques"** dans le README — Explique que les rules sont **injectées mot pour mot dans le prompt du LLM consolidateur** à chaque `bank_consolidate`. Ce n'est pas de la documentation passive — c'est un contrat direct avec le modèle.
+
+### Fichiers ajoutés/modifiés
+| Fichier | Changements |
+|---------|------------|
+| `RULES/standard.memory.bank.md` | Nouveau — Copie des rules du space `live-mem` (general purpose) |
+| `RULES/medical.memory.bank.md` | Nouveau — Modèle médical adapté pour Live Memory (7+2 fichiers, fiabilité absolue, mapping consolidation) |
+| `RULES/presales.memory.bank.md` | Nouveau — Modèle avant-vente B2B (5+N fichiers, personas dynamiques, gestion contradictions, tracking visuel) |
+| `RULES/README.md` | Nouveau — Documentation des templates de rules avec explication du lien rules → LLM |
+| `README.md` | Badge version 0.7.6, mention du répertoire RULES/ dans la structure du projet |
+
+---
+
 ## [0.7.5] — 2026-03-13
 
 ### Ajouté — Outil MCP `system_whoami` (identité du token courant)
