@@ -9,6 +9,7 @@ Commandes : help, health, whoami, about, space, live, bank, token, backup, quit.
 """
 
 import asyncio
+import shlex
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
@@ -87,7 +88,11 @@ VERB_SUBCOMMANDS = {
 
 async def dispatch(client: MCPClient, user_input: str, json_output: bool):
     """Route une commande vers le bon handler."""
-    parts = user_input.strip().split()
+    try:
+        parts = shlex.split(user_input.strip())
+    except ValueError:
+        # Fallback si guillemets non fermés
+        parts = user_input.strip().split()
     if not parts:
         return
 
