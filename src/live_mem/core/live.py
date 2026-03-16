@@ -55,7 +55,6 @@ class LiveService:
         space_id: str,
         category: str,
         content: str,
-        agent: str = "",
         tags: str = "",
     ) -> dict:
         """
@@ -64,11 +63,14 @@ class LiveService:
         Crée un fichier Markdown avec front-matter YAML + contenu.
         Le nom de fichier est unique : {timestamp}_{agent}_{category}_{uuid8}.md
 
+        L'identité de l'agent est TOUJOURS le client_name du token
+        d'authentification (v0.8.1 — Token = Agent). Pas de paramètre
+        agent pour garantir la cohérence avec le consolidateur.
+
         Args:
             space_id: Espace cible
             category: Type de note (observation, decision, todo, etc.)
             content: Corps de la note (texte libre)
-            agent: Identifiant de l'agent (auto-détecté si vide)
             tags: Tags séparés par des virgules (optionnel)
 
         Returns:
@@ -93,10 +95,9 @@ class LiveService:
                 "message": f"Espace '{space_id}' introuvable",
             }
 
-        # Auto-détecter l'agent depuis le token si non fourni
-        if not agent:
-            from ..auth.context import get_current_agent_name
-            agent = get_current_agent_name()
+        # Agent = client_name du token (toujours, jamais de paramètre libre)
+        from ..auth.context import get_current_agent_name
+        agent = get_current_agent_name()
 
         # Construire le nom de fichier unique
         # Format : {YYYYMMDD}T{HHMMSS}_{agent}_{category}_{uuid8}.md

@@ -264,10 +264,12 @@ async def live_note(
     space_id: str,
     category: str,          # observation | decision | todo | insight | question | progress | issue
     content: str,           # Contenu de la note (texte libre)
-    agent: str = "",        # Identifiant de l'agent (auto-détecté si vide)
     tags: str = ""          # Tags séparés par des virgules (optionnel)
 ) -> dict:
 ```
+
+> **v0.8.1** : Le paramètre `agent` a été supprimé. L'identité de l'agent est toujours
+> le `client_name` du token d'authentification (Token = Agent).
 
 **Retour** :
 ```json
@@ -287,7 +289,7 @@ async def live_note(
 - Crée le fichier avec front-matter YAML + contenu
 - Aucun conflit possible (append-only, nom unique)
 - Aucun lock nécessaire
-- Le paramètre `agent` est découplé du token : un même token peut écrire pour différents agents
+- L'agent est toujours le `client_name` du token (Token = Agent, v0.8.1)
 
 **Catégories standard** :
 

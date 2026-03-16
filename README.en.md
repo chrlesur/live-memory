@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.8.1-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -284,7 +284,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 | Tool          | Parameters                                           | Description                                                                                            |
 | ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `live_note`   | `space_id`, `category`, `content`, `agent?`, `tags?` | Writes a timestamped note. Categories: observation, decision, todo, insight, question, progress, issue |
+| `live_note`   | `space_id`, `category`, `content`, `tags?`            | Writes a timestamped note (agent = token name). Categories: observation, decision, todo, insight, question, progress, issue |
 | `live_read`   | `space_id`, `limit?`, `category?`, `agent?`          | Reads live notes (optional filters)                                                                    |
 | `live_search` | `space_id`, `query`, `limit?`                        | Full-text search in notes                                                                              |
 
@@ -442,9 +442,15 @@ In Cline's MCP settings (`cline_mcp_settings.json`):
 }
 ```
 
-To configure the **Custom Instructions** for your agent, refer to the detailed integration guide. There you will find the complete template to automatically set up your workspace, where you only need to define **one variable** (`SPACE`) — the agent name being auto-detected from the authentication token.
+To configure the **Custom Instructions** for your agent, copy the [`clinerules.md`](clinerules.md) file into your Cline global Custom Instructions (or into a `.clinerules/` directory in your project). You only need to change **two values**:
+- The **MCP server name** (as configured in `cline_mcp_settings.json`, e.g. `my-live-mem`)
+- The **name of your memory space** (the ID passed to `space_create`, e.g. `my-project`)
 
-> 💡 **See the full guide:** [Cline Integration & Custom Instructions Guide](GUIDE_INTEGRATION_CLINE.md)
+The agent name is **auto-detected** from the authentication token — nothing else to configure.
+
+> 💡 **Ready-to-use template:** [`clinerules.md`](clinerules.md) — copy and customize the 2 bold values
+>
+> 📖 **Detailed guide:** [Cline Integration & Custom Instructions Guide](GUIDE_INTEGRATION_CLINE.md)
 
 ### With Claude Desktop
 
@@ -619,11 +625,12 @@ live-memory/
 │       └── admin.py           #   7 tools (tokens + GC + purge)
 ├── scripts/                   # CLI + Shell + Tests
 ├── waf/                       # Caddy + Coraza WAF
+├── clinerules.md              # 📋 Cline Custom Instructions template (copy + customize)
 ├── DESIGN/live-mem/           # 9 architecture documents
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.8.0
+├── VERSION                    # 0.8.1
 ├── CHANGELOG.md
 └── FAQ.md
 ```
@@ -674,4 +681,4 @@ Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.8.0 — Shared working memory for collaborative AI agents*
+*Live Memory v0.8.1 — Shared working memory for collaborative AI agents*

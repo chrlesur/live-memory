@@ -76,14 +76,20 @@ def check_access(resource_id: str) -> Optional[dict]:
     return None  # OK
 ```
 
-### 1.5 Découplage Token / Agent (v0.2.0+)
+### 1.5 Token = Agent (v0.8.1+, remplace le découplage v0.2.0)
 
-Le token est pour **l'authentification**, le nom d'agent est **explicite** :
+Le token **est** l'identité de l'agent. Le `client_name` du token est utilisé partout :
 
-- `live_note(agent="cline-dev")` : le paramètre `agent` identifie l'auteur de la note, indépendamment du token utilisé
-- `bank_consolidate(agent="cline-dev")` : consolide uniquement les notes de cet agent
-- Un même token peut être partagé entre plusieurs agents
-- `get_current_agent_name()` retourne le `client_name` du token comme fallback
+- `live_note()` : le paramètre `agent` a été **supprimé** — l'identité est toujours le `client_name` du token
+- `bank_consolidate(agent="")` : auto-détecte le `client_name` du token pour les utilisateurs write
+- `bank_consolidate(agent="xxx")` : seul un admin peut consolider les notes d'un autre agent
+- `get_current_agent_name()` retourne le `client_name` du token (ou "anonymous" si pas de token)
+- **Un token = un agent** — pas de partage de token entre plusieurs agents
+
+> ⚠️ **Historique** : v0.2.0 introduisait un découplage Token/Agent permettant de passer `agent=` librement.
+> Cette approche a été abandonnée en v0.8.1 car elle causait des notes orphelines (le consolidateur
+> filtre par nom d'agent dans le filename S3 — si le nom ne correspondait pas au token, les notes
+> n'étaient jamais consolidées).
 
 ### 1.6 Stockage des tokens
 
@@ -180,7 +186,7 @@ Agent B → live_note(category="decision", "Non, JSON uniquement")
 
 | Practice                     | Description                                                          |
 | ---------------------------- | -------------------------------------------------------------------- |
-| **Identifier l'agent**       | Toujours passer `agent="nom-agent"` dans `live_note`                 |
+| **Identifier l'agent**       | L'agent est le `client_name` du token (automatique depuis v0.8.1)    |
 | **Catégoriser les notes**    | Utiliser les catégories standard (observation, decision, todo, etc.) |
 | **Taguer**                   | Ajouter des tags pour le filtrage (`tags="auth,module"`)             |
 | **Lire avant d'écrire**      | `bank_read_all` au démarrage, `live_read` régulièrement              |

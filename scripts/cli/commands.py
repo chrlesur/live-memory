@@ -217,15 +217,14 @@ def live_grp():
 @click.argument("space_id")
 @click.argument("category")
 @click.argument("content")
-@click.option("--agent", "-a", default="", help="Nom de l'agent")
 @click.option("--tags", default="", help="Tags séparés par virgules")
 @click.option("--json", "-j", "jflag", is_flag=True)
 @click.pass_context
-def live_note_cmd(ctx, space_id, category, content, agent, tags, jflag):
-    """Écrire une note."""
+def live_note_cmd(ctx, space_id, category, content, tags, jflag):
+    """Écrire une note (agent = token name, toujours)."""
     _run_tool(ctx, "live_note", {
         "space_id": space_id, "category": category, "content": content,
-        "agent": agent, "tags": tags,
+        "tags": tags,
     }, lambda r: show_success(f"Note créée: {r.get('filename', '?')}"), jflag)
 
 

@@ -45,7 +45,6 @@ def register(mcp: FastMCP) -> int:
         space_id: Annotated[str, Field(description="Identifiant de l'espace cible")],
         category: Annotated[str, Field(description="Catégorie : observation|decision|todo|insight|question|progress|issue")],
         content: Annotated[str, Field(description="Contenu de la note (texte libre)")],
-        agent: Annotated[str, Field(default="", description="Identifiant de l'agent (auto-détecté si vide)")] = "",
         tags: Annotated[str, Field(default="", description="Tags séparés par des virgules (ex: 'auth,security,urgent')")] = "",
     ) -> dict:
         """
@@ -55,11 +54,14 @@ def register(mcp: FastMCP) -> int:
         Chaque note est un fichier S3 unique (append-only) — aucun conflit
         possible entre agents écrivant simultanément.
 
+        L'identité de l'agent est TOUJOURS le client_name du token
+        d'authentification. Pas de paramètre agent — garantit la cohérence
+        avec le consolidateur et empêche les notes orphelines.
+
         Args:
             space_id: Espace cible
             category: observation|decision|todo|insight|question|progress|issue
             content: Contenu de la note (texte libre)
-            agent: Identifiant de l'agent (auto-détecté si vide)
             tags: Tags séparés par des virgules (optionnel)
 
         Returns:
@@ -82,7 +84,6 @@ def register(mcp: FastMCP) -> int:
                 space_id=space_id,
                 category=category,
                 content=content,
-                agent=agent,
                 tags=tags,
             )
         except Exception as e:

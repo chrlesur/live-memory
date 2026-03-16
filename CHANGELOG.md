@@ -5,6 +5,34 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.8.1] — 2026-03-16
+
+### Changé — Token = Agent (suppression du paramètre `agent` dans `live_note`)
+
+**Inversion de la décision v0.2.0** — Le découplage Token / Agent (v0.2.0) permettait de passer un `agent` libre dans `live_note`, indépendamment du token utilisé. Cette liberté causait des problèmes critiques à la consolidation :
+
+- **Notes orphelines silencieuses** — Si l'agent écrivait sous un nom différent du `client_name` de son token, le consolidateur (qui filtre par pattern `_{agent}_` dans le nom de fichier S3) ne trouvait jamais ces notes. Aucune erreur affichée → perte de données invisible.
+- **Usurpation d'identité** — Un agent pouvait écrire des notes sous le nom d'un autre agent.
+- **Notes éparpillées** — Un agent écrivant parfois avec `agent=""` et parfois avec `agent="mon-nom"` créait deux identités distinctes.
+
+**Nouveau comportement (v0.8.1)** :
+- Le paramètre `agent` est **supprimé** de `live_note` (outil MCP + core + CLI)
+- L'identité de l'agent est **toujours** le `client_name` du token d'authentification
+- Chaque token = une identité unique = un agent
+- `live_read(agent=...)` conserve son paramètre de filtre (utile pour lire les notes d'autres agents)
+- `bank_consolidate(agent=...)` inchangé (admin peut cibler un agent spécifique)
+
+### Fichiers modifiés
+| Fichier                                       | Changements                                                                       |
+| --------------------------------------------- | --------------------------------------------------------------------------------- |
+| `src/live_mem/tools/live.py`                  | Paramètre `agent` supprimé de `live_note`                                         |
+| `src/live_mem/core/live.py`                   | Paramètre `agent` supprimé de `write_note()`, auto-détection forcée              |
+| `scripts/cli/commands.py`                     | Option `--agent/-a` retirée de `live note` CLI                                    |
+| `DESIGN/live-mem/AUTH_AND_COLLABORATION.md`   | Section 1.5 réécrite : Token = Agent (v0.8.1)                                     |
+| `DESIGN/live-mem/MCP_TOOLS_SPEC.md`           | Signature `live_note` mise à jour (sans `agent`)                                  |
+
+---
+
 ## [0.8.0] — 2026-03-13
 
 ### Ajouté — Consolidation par lots et protection Unicode
