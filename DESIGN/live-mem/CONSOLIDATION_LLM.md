@@ -1,6 +1,6 @@
 # Pipeline de Consolidation LLM — Live Memory
 
-> **Version** : 0.8.0 | **Date** : 2026-03-13 | **Auteur** : Cloud Temple
+> **Version** : 0.8.2 | **Date** : 2026-03-17 | **Auteur** : Cloud Temple
 
 ---
 
@@ -565,4 +565,4 @@ Input: 3 notes, 6 fichiers bank
 
 ---
 
-*Document mis à jour le 10 mars 2026 — Live Memory v0.8.0 (consolidation chirurgicale)*
+*Document mis à jour le 17 mars 2026 — Live Memory v0.8.2*

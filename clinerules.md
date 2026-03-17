@@ -59,7 +59,7 @@ Le LLM consolidera **mes propres notes** (auto-détection de l'agent depuis le t
 1. **Ne JAMAIS écrire directement dans la bank** — seule la consolidation LLM le fait
 2. **Toujours passer `space_id="{SPACE}"`** dans tous les appels
 3. **Écrire des notes atomiques après chaque étape importante** — 1 note = 1 fait, 1 décision, ou 1 tâche
-4. **Consolider en fin de session** — ne jamais quitter sans consolider mais toujours après avoir validé avec l'utilisateur
+4. **Consolider en fin de session apres une note de synthese** — ne jamais quitter sans consolider mais toujours après avoir validé avec l'utilisateur
 5. **Lire la bank au démarrage** — ne jamais travailler sans contexte
 
 ## 🔄 Quand demander une mise à jour

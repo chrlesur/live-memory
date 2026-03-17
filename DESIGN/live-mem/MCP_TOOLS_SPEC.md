@@ -1,6 +1,6 @@
 # Spécification des Outils MCP — Live Memory
 
-> **Version** : 0.8.0 | **Date** : 2026-03-13 | **Auteur** : Cloud Temple
+> **Version** : 0.8.2 | **Date** : 2026-03-17 | **Auteur** : Cloud Temple
 
 ---
 
@@ -746,4 +746,4 @@ async def admin_gc_notes(
 
 ---
 
-*Document mis à jour le 8 mars 2026 — Live Memory v0.8.0*
+*Document mis à jour le 17 mars 2026 — Live Memory v0.8.2*

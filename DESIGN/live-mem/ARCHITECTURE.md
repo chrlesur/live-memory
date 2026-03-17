@@ -1,6 +1,6 @@
 # Architecture — Live Memory MCP Server
 
-> **Version** : 0.8.0 | **Date** : 2026-03-13 | **Auteur** : Cloud Temple  
+> **Version** : 0.8.2 | **Date** : 2026-03-17 | **Auteur** : Cloud Temple
 > **Projet** : live-mem | **Licence** : Apache 2.0
 
 ---
@@ -420,4 +420,4 @@ CONSOLIDATION_MAX_NOTES=500      # Max notes par consolidation
 
 ---
 
-*Document mis à jour le 11 mars 2026 — Live Memory v0.8.0*
+*Document mis à jour le 17 mars 2026 — Live Memory v0.8.2*
