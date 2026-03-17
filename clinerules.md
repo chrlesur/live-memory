@@ -16,11 +16,14 @@ Ma mémoire persistante est gérée par le serveur MCP **Live Memory** (`**<NOM 
 ## 📖 Au démarrage de CHAQUE tâche (OBLIGATOIRE)
 
 1. Appeler `space_rules("{SPACE}")` pour lire les rules (structure de la bank)
-2. Appeler `bank_read_all("{SPACE}")` pour charger TOUT le contexte
-3. Lire attentivement le contenu avant de commencer
-4. Identifier le focus actuel dans `activeContext.md`
+2. Appeler `bank_read_all("{SPACE}")` pour charger TOUT le contexte consolidé
+3. Appeler `live_read(space_id="{SPACE}")` pour lire les **notes non consolidées**
+4. Lire attentivement le contenu avant de commencer
+5. Identifier le focus actuel dans `activeContext.md`
 
 > ⚠️ Ne JAMAIS commencer à travailler sans avoir lu la bank.
+>
+> 💡 **Pourquoi lire les notes live ?** Entre deux sessions, des notes ont pu être écrites (par moi ou par d'autres agents) sans avoir été consolidées dans la bank. Ces notes contiennent du contexte récent qui n'apparaît pas encore dans les fichiers bank. Les ignorer = risquer de refaire du travail déjà fait ou de rater des décisions récentes.
 
 ## 📝 Pendant le travail
 

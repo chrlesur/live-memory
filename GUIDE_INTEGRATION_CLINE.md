@@ -1,6 +1,6 @@
 # 🔌 Guide d'intégration Live Memory avec Cline (VS Code / VSCodium)
 
-> **Version** : 0.7.4 | **Date** : 2026-03-13
+> **Version** : 0.8.2 | **Date** : 2026-03-17
 
 Ce guide détaille pas à pas comment connecter **Cline** (l'agent IA dans VS Code ou VSCodium) à **Live Memory** pour lui donner une mémoire de travail partagée et persistante.
 
@@ -133,7 +133,7 @@ Après avoir sauvegardé le fichier de config :
 1. **Redémarrez Cline** (ou rechargez VS Code avec `Ctrl+Shift+P` → "Developer: Reload Window")
 2. Dans le panneau Cline, cliquez sur l'onglet **MCP** 
 3. Vous devriez voir **"live-memory"** avec un indicateur vert ✅
-4. Cliquez dessus pour voir les **30 outils** disponibles
+4. Cliquez dessus pour voir les **35 outils** disponibles
 
 ### 3.5 Serveur distant (production)
 
@@ -234,11 +234,14 @@ Ma mémoire persistante est gérée par le serveur MCP **Live Memory** (`my-live
 ## 📖 Au démarrage de CHAQUE tâche (OBLIGATOIRE)
 
 1. Appeler `space_rules("{SPACE}")` pour lire les rules (structure de la bank)
-2. Appeler `bank_read_all("{SPACE}")` pour charger TOUT le contexte
-3. Lire attentivement le contenu avant de commencer
-4. Identifier le focus actuel dans `activeContext.md`
+2. Appeler `bank_read_all("{SPACE}")` pour charger TOUT le contexte consolidé
+3. Appeler `live_read(space_id="{SPACE}")` pour lire les **notes non consolidées**
+4. Lire attentivement le contenu avant de commencer
+5. Identifier le focus actuel dans `activeContext.md`
 
 > ⚠️ Ne JAMAIS commencer à travailler sans avoir lu la bank.
+>
+> 💡 **Pourquoi lire les notes live ?** Entre deux sessions, des notes ont pu être écrites (par moi ou par d'autres agents) sans avoir été consolidées dans la bank. Ces notes contiennent du contexte récent qui n'apparaît pas encore dans les fichiers bank. Les ignorer = risquer de refaire du travail déjà fait ou de rater des décisions récentes.
 
 ## 📝 Pendant le travail
 
@@ -304,8 +307,10 @@ Si l'utilisateur demande **"update memory bank"** ou **"met à jour la memory ba
 ```
 ┌────────────────────────────────────────────────┐
 │  1. DÉMARRAGE                                  │
+│     space_rules("mon-projet")                  │
 │     bank_read_all("mon-projet")                │
-│     → Cline lit tout le contexte accumulé      │
+│     live_read("mon-projet")                    │
+│     → Cline lit rules + bank + notes live      │
 ├────────────────────────────────────────────────┤
 │  2. TRAVAIL (boucle)                           │
 │     • Cline code, analyse, répond              │
@@ -356,7 +361,7 @@ Si vous voulez une version ultra-courte, ajoutez ceci dans les Custom Instructio
 
 ```
 Tu as accès à Live Memory (serveur MCP).
-- Au démarrage: bank_read_all("{SPACE}") et space_rules("{SPACE}")
+- Au démarrage: space_rules("{SPACE}"), bank_read_all("{SPACE}"), live_read("{SPACE}")
 - Pendant le travail: live_note(space_id="{SPACE}", category="...", content="...")
 - En fin de session: bank_consolidate(space_id="{SPACE}")
 Où {SPACE} = "mon-projet". L'agent est auto-détecté depuis le token.
@@ -467,7 +472,7 @@ La configuration est similaire. Éditez le fichier `claude_desktop_config.json` 
 }
 ```
 
-Redémarrez Claude Desktop après la modification. Les 30 outils Live Memory apparaîtront dans la liste des outils disponibles.
+Redémarrez Claude Desktop après la modification. Les 35 outils Live Memory apparaîtront dans la liste des outils disponibles.
 
 ---
 
@@ -484,4 +489,4 @@ Redémarrez Claude Desktop après la modification. Les 30 outils Live Memory app
 
 ---
 
-*Guide d'intégration Live Memory v0.7.4 — [Documentation complète](README.md)*
+*Guide d'intégration Live Memory v0.8.2 — [Documentation complète](README.md)*

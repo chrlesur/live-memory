@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.8.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.8.2-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -93,7 +93,7 @@ Live Memory + Graph Memory implémente directement cette architecture :
 
 **Pourquoi deux niveaux ?** Un seul niveau ne suffit pas :
 - La mémoire de travail seule est **éphémère** — elle disparaît quand le projet se termine
-- Le graphe de connaissances seul est **too lourd** pour des notes quotidiennes rapides
+- Le graphe de connaissances seul est **trop lourd** pour des notes quotidiennes rapides
 - Le pont entre les deux permet aux agents de **travailler vite** (notes live) tout en **capitalisant** les connaissances (graphe)
 
 Concrètement, les agents peuvent :
@@ -266,7 +266,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | Outil           | Paramètres | Description                                               |
 | --------------- | ---------- | --------------------------------------------------------- |
 | `system_health` | —          | État de santé (S3, LLMaaS, nombre d'espaces)              |
-| `system_whoami` | —          | 👤 Identité du token courant (nom, permissions, espaces)  |
+| `system_whoami` | —          | 👤 Identité du token courant (nom, permissions, espaces) |
 | `system_about`  | —          | Identité du service (version, outils, capacités)          |
 
 ### Space (8 outils)
@@ -284,11 +284,11 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ### Live (3 outils)
 
-| Outil         | Paramètres                                           | Description                                                                                            |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `live_note`   | `space_id`, `category`, `content`, `tags?`            | Écrit une note horodatée (agent = token name). Catégories : observation, decision, todo, insight, question, progress, issue |
-| `live_read`   | `space_id`, `limit?`, `category?`, `agent?`          | Lit les notes live (filtres optionnels)                                                                |
-| `live_search` | `space_id`, `query`, `limit?`                        | Recherche plein texte dans les notes                                                                   |
+| Outil         | Paramètres                                  | Description                                                                                                                 |
+| ------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `live_note`   | `space_id`, `category`, `content`, `tags?`  | Écrit une note horodatée (agent = token name). Catégories : observation, decision, todo, insight, question, progress, issue |
+| `live_read`   | `space_id`, `limit?`, `category?`, `agent?` | Lit les notes live (filtres optionnels)                                                                                     |
+| `live_search` | `space_id`, `query`, `limit?`               | Recherche plein texte dans les notes                                                                                        |
 
 ### Bank (5 outils)
 
@@ -320,15 +320,15 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ### Admin (7 outils)
 
-| Outil                 | Paramètres                                               | Description                                                                  |
-| --------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `admin_create_token`  | `name`, `permissions`, `space_ids?`, `expires_in_days?`, `email?` | Crée un token (⚠️ affiché une seule fois). Permissions: read, write, admin. Email optionnel pour traçabilité |
-| `admin_list_tokens`   | —                                                        | Liste les tokens actifs                                                      |
-| `admin_revoke_token`  | `token_hash`                                             | Révoque un token (le rend inutilisable)                                      |
-| `admin_delete_token`  | `token_hash`                                             | Supprime physiquement un token du registre (⚠️ irréversible)               |
-| `admin_purge_tokens`  | `revoked_only?`                                          | Purge en masse : révoqués seuls (défaut) ou tous les tokens                  |
-| `admin_update_token`  | `token_hash`, `space_ids`, `action`                      | Modifie les espaces d'un token (add/remove/set)                              |
-| `admin_gc_notes`      | `space_id?`, `max_age_days?`, `confirm?`, `delete_only?` | Garbage Collector : nettoie les notes orphelines                             |
+| Outil                | Paramètres                                                        | Description                                                                                                    |
+| -------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `admin_create_token` | `name`, `permissions`, `space_ids?`, `expires_in_days?`, `email?` | Crée un token (⚠️ affiché une seule fois). Permissions: read, write, admin. Email optionnel pour traçabilité |
+| `admin_list_tokens`  | —                                                                 | Liste les tokens actifs                                                                                        |
+| `admin_revoke_token` | `token_hash`                                                      | Révoque un token (le rend inutilisable)                                                                        |
+| `admin_delete_token` | `token_hash`                                                      | Supprime physiquement un token du registre (⚠️ irréversible)                                                 |
+| `admin_purge_tokens` | `revoked_only?`                                                   | Purge en masse : révoqués seuls (défaut) ou tous les tokens                                                    |
+| `admin_update_token` | `token_hash`, `space_ids`, `action`                               | Modifie les espaces d'un token (add/remove/set)                                                                |
+| `admin_gc_notes`     | `space_id?`, `max_age_days?`, `confirm?`, `delete_only?`          | Garbage Collector : nettoie les notes orphelines                                                               |
 
 ---
 
@@ -400,7 +400,7 @@ Les endpoints `/api/*` nécessitent un Bearer Token. La page `/live` et les fich
 
 ### Avec Cline (VS Code / VSCodium)
 
-Dans les settings MCP de Cline (`cline_mcp_settings.json`) :
+Dans les settings MCP de Cline (`cline_mcp_settings.json`) - n'oubliez pas /mcp :
 
 ```json
 {
@@ -534,12 +534,12 @@ python scripts/test_recette.py --list
 python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 ```
 
-| Suite | Tests | Description |
-|---|---|---|
-| `recette` | 7 | Pipeline complet : token → notes → consolidation LLM → bank |
-| `isolation` | 18 | Isolation multi-tenant v0.7.1 : accès inter-espaces, filtrage backups, auto-ajout token |
-| `qualite` | 19 | Tests des 32 outils MCP : system, admin, space, live, bank, backup, GC |
-| `graph` | ~8 | Pont Graph Memory : connect, push, status, disconnect (optionnel) |
+| Suite       | Tests | Description                                                                             |
+| ----------- | ----- | --------------------------------------------------------------------------------------- |
+| `recette`   | 7     | Pipeline complet : token → notes → consolidation LLM → bank                             |
+| `isolation` | 18    | Isolation multi-tenant v0.7.1 : accès inter-espaces, filtrage backups, auto-ajout token |
+| `qualite`   | 19    | Tests des 32 outils MCP : system, admin, space, live, bank, backup, GC                  |
+| `graph`     | ~8    | Pont Graph Memory : connect, push, status, disconnect (optionnel)                       |
 
 Voir [scripts/README.md](scripts/README.md) pour le détail complet.
 
@@ -612,9 +612,10 @@ live-memory/
 ├── waf/                       # WAF Caddy + Coraza
 │   ├── Caddyfile              #   Config WAF + rate limiting
 │   └── Dockerfile             #   Image Caddy + Coraza
-├── RULES/                     # 📐 Modèles de rules pour créer des espaces
+├── RULES/                     # 📐 Modèles de rules pour créer des espaces (5 templates)
 │   ├── README.md              #   Guide d'utilisation + pourquoi les rules sont critiques
-│   ├── standard.memory.bank.md#   Modèle general purpose (6 fichiers, dev/archi/projet)
+│   ├── live-mem.standard.memory.bank.md  # Modèle standard (6 fichiers, dev/archi/projet)
+│   ├── book.memory.bank.md    #   Modèle écriture de livre (6 fichiers, suivi narratif)
 │   ├── medical.memory.bank.md #   Modèle suivi médical (7+2 fichiers, fiabilité absolue)
 │   └── presales.memory.bank.md#   Modèle avant-vente B2B (5+N fichiers, personas dynamiques)
 ├── clinerules.md              # 📋 Template Custom Instructions Cline (copier + personnaliser)
@@ -622,7 +623,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.8.1
+├── VERSION                    # 0.8.2
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -685,4 +686,4 @@ Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.8.1 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.8.2 — Mémoire de travail partagée pour agents IA collaboratifs*

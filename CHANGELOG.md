@@ -5,6 +5,45 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.8.2] — 2026-03-16
+
+### Ajouté — Nouveau template de rules `book.memory.bank.md` et fix shell `space create`
+
+- **`RULES/book.memory.bank.md`** — Nouveau modèle de rules pour **l'écriture de livres**. 6 fichiers obligatoires (bookbrief, bookContext, narrativeDesign, writingContext, activeContext, progress). Conçu pour les agents IA assistant d'écriture : suivi narratif, voix et ton, compteurs de mots, tracking par chapitre, retours de relecture. Instructions de consolidation spécialisées avec mapping adapté (ex: `decision` → `narrativeDesign.md` si c'est un choix structurant).
+- **Renommage `standard.memory.bank.md` → `live-mem.standard.memory.bank.md`** — Le modèle standard porte désormais un nom plus explicite.
+- **5 templates de rules** disponibles dans `RULES/` (était 3) : standard, medical, presales, book, live-mem.standard.
+
+### Amélioré — Template Custom Instructions (lecture des notes non consolidées au démarrage)
+- **Étape 3 ajoutée dans la procédure de démarrage** — `live_read(space_id="{SPACE}")` est désormais obligatoire au lancement de chaque tâche. Permet de récupérer les notes écrites entre deux sessions qui n'ont pas encore été consolidées dans la bank.
+- **Justification** : sans cette étape, l'agent rate du contexte récent (notes d'autres agents, notes de sessions précédentes non consolidées). Risque de refaire du travail déjà fait ou de rater des décisions récentes.
+- **Procédure de démarrage** : 5 étapes (était 4) — `space_rules` → `bank_read_all` → **`live_read`** → lire le contenu → identifier le focus.
+- **Note explicative** ajoutée sous le bloc d'avertissement pour expliquer le "pourquoi" aux agents.
+
+### Corrigé — Shell interactif `space create` (parsing des options)
+- **Bug : `space create -d "desc" -r rules.md id` échouait** — Le shell utilisait un parsing purement positionnel (`args[1]` = space_id, `args[2]` = description, `args[3:]` = rules). Les options nommées (`-d`, `-r`) étaient interprétées comme le space_id → erreur `"space_id invalide : '-d'"`.
+- **Nouveau parsing** — Support complet des options nommées, aligné sur la CLI Click :
+  - `-d` / `--description` — Description de l'espace
+  - `-r` / `--rules-file` — Chemin vers un fichier rules (.md), lu automatiquement
+  - `--rules` — Contenu rules en ligne (inline)
+  - `-o` / `--owner` — Propriétaire
+- **Rétrocompatibilité** — La forme positionnelle `space create <id> <desc> <rules>` fonctionne toujours.
+- **Autocomplétion enrichie** — `-d`, `-r`, `-o`, `--description`, `--rules-file`, `--rules`, `--owner`, `--email`, `-e` ajoutés aux mots-clés du shell.
+
+### Fichiers modifiés
+| Fichier                                  | Changements                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------- |
+| `RULES/book.memory.bank.md`              | Nouveau — Modèle écriture de livre (6 fichiers, suivi narratif, compteurs mots) |
+| `RULES/live-mem.standard.memory.bank.md` | Renommé — Ancien `standard.memory.bank.md`                                      |
+| `RULES/README.md`                        | Table des templates mise à jour (5 templates)                                   |
+| `scripts/cli/shell.py`                   | Handler `space create` refactoré (options nommées), aide et autocomplétion MAJ  |
+| `.clinerules/standard.memory.bank.md`    | Étape 3 `live_read` ajoutée au démarrage + note explicative                     |
+| `clinerules.md`                          | Idem — template racine mis à jour avec `live_read` au démarrage                 |
+| `scripts/README.md`                      | Version v0.8.1 → v0.8.2                                                         |
+| `scripts/README.en.md`                   | Version v0.7.5 → v0.8.2                                                         |
+| `GUIDE_INTEGRATION_CLINE.md`             | v0.7.4 → v0.8.2 : template + workflow + minimaliste + 30→35 outils              |
+
+---
+
 ## [0.8.1] — 2026-03-16
 
 ### Changé — Token = Agent (suppression du paramètre `agent` dans `live_note`)
@@ -23,13 +62,13 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - `bank_consolidate(agent=...)` inchangé (admin peut cibler un agent spécifique)
 
 ### Fichiers modifiés
-| Fichier                                       | Changements                                                                       |
-| --------------------------------------------- | --------------------------------------------------------------------------------- |
-| `src/live_mem/tools/live.py`                  | Paramètre `agent` supprimé de `live_note`                                         |
-| `src/live_mem/core/live.py`                   | Paramètre `agent` supprimé de `write_note()`, auto-détection forcée              |
-| `scripts/cli/commands.py`                     | Option `--agent/-a` retirée de `live note` CLI                                    |
-| `DESIGN/live-mem/AUTH_AND_COLLABORATION.md`   | Section 1.5 réécrite : Token = Agent (v0.8.1)                                     |
-| `DESIGN/live-mem/MCP_TOOLS_SPEC.md`           | Signature `live_note` mise à jour (sans `agent`)                                  |
+| Fichier                                     | Changements                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------- |
+| `src/live_mem/tools/live.py`                | Paramètre `agent` supprimé de `live_note`                           |
+| `src/live_mem/core/live.py`                 | Paramètre `agent` supprimé de `write_note()`, auto-détection forcée |
+| `scripts/cli/commands.py`                   | Option `--agent/-a` retirée de `live note` CLI                      |
+| `DESIGN/live-mem/AUTH_AND_COLLABORATION.md` | Section 1.5 réécrite : Token = Agent (v0.8.1)                       |
+| `DESIGN/live-mem/MCP_TOOLS_SPEC.md`         | Signature `live_note` mise à jour (sans `agent`)                    |
 
 ---
 

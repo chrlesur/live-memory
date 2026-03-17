@@ -36,7 +36,7 @@ SHELL_COMMANDS = {
     "health": "État de santé",
     "whoami": "Identité du token courant (nom, permissions, espaces)",
     "about": "Informations sur le service",
-    "space create": "Créer un espace (space create <id> <desc> <rules>)",
+    "space create": "Créer un espace (space create <id> -d \"desc\" -r <rules.md> [-o owner])",
     "space update": "Modifier description/owner (space update <id> -d \"desc\" [-o \"owner\"])",
     "space list": "Lister les espaces",
     "space info": "Infos d'un espace (space info <id>)",
@@ -179,10 +179,61 @@ async def _handle_space(client, args, json_out):
     """Handler pour les commandes space."""
     sub = args[0] if args else ""
 
-    if sub == "create" and len(args) >= 4:
-        result = await client.call_tool("space_create", {
-            "space_id": args[1], "description": args[2], "rules": " ".join(args[3:]),
-        })
+    if sub == "create":
+        # Parser les options nommées (comme la CLI Click)
+        description = ""
+        rules = ""
+        rules_file = ""
+        owner = ""
+        remaining = args[1:]  # après "create"
+        i = 0
+        positional = []
+        while i < len(remaining):
+            flag = remaining[i]
+            if flag in ("-d", "--description") and i + 1 < len(remaining):
+                description = remaining[i + 1]
+                i += 2
+            elif flag in ("-r", "--rules-file") and i + 1 < len(remaining):
+                rules_file = remaining[i + 1]
+                i += 2
+            elif flag == "--rules" and i + 1 < len(remaining):
+                rules = remaining[i + 1]
+                i += 2
+            elif flag in ("-o", "--owner") and i + 1 < len(remaining):
+                owner = remaining[i + 1]
+                i += 2
+            else:
+                positional.append(flag)
+                i += 1
+
+        # Lire le fichier rules si -r/--rules-file spécifié
+        if rules_file and not rules:
+            try:
+                rules = Path(rules_file).read_text(encoding="utf-8")
+            except Exception as e:
+                show_error(f"Impossible de lire le fichier rules : {e}")
+                return
+
+        # Rétrocompatibilité : forme positionnelle space create <id> <desc> <rules>
+        if not description and not rules and len(positional) >= 3:
+            space_id = positional[0]
+            description = positional[1]
+            rules = " ".join(positional[2:])
+        else:
+            space_id = positional[0] if positional else ""
+
+        if not space_id:
+            console.print("[yellow]Usage : space create <space_id> -d \"description\" -r <rules_file.md>[/yellow]")
+            console.print("[yellow]   ou : space create <space_id> <description> <rules_inline>[/yellow]")
+            return
+        if not rules:
+            show_error("Rules requises : -r <fichier.md> ou --rules \"contenu inline\"")
+            return
+
+        tool_args = {"space_id": space_id, "description": description, "rules": rules}
+        if owner:
+            tool_args["owner"] = owner
+        result = await client.call_tool("space_create", tool_args)
         (show_json if json_out else show_space_created)(result) if result.get("status") == "created" else show_error(result.get("message", "?"))
 
     elif sub == "update" and len(args) >= 2:
@@ -531,6 +582,8 @@ async def run_shell(url: str, token: str):
     words = list(SHELL_COMMANDS.keys()) + [
         "--json", "--confirm", "--all",
         "--permissions", "-p", "--space-ids", "-s",
+        "--description", "-d", "--rules-file", "-r", "--rules", "--owner", "-o",
+        "--email", "-e",
         "read", "read,write", "read,write,admin",
     ]
     completer = WordCompleter(words, ignore_case=True)

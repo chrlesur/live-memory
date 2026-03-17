@@ -1,6 +1,6 @@
 # 🖥️ Live Memory CLI, Shell & Tests
 
-> Scriptable CLI, interactive shell and test scripts for Live Memory MCP v0.7.5.
+> Scriptable CLI, interactive shell and test scripts for Live Memory MCP v0.8.2.
 
 ---
 
@@ -138,4 +138,4 @@ scripts/
 
 ---
 
-*Live Memory CLI v0.7.5*
+*Live Memory CLI v0.8.2*
