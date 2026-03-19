@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-0.8.2-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -119,7 +119,7 @@ Concrètement, les agents peuvent :
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   35 outils • Auth Bearer      │
+          │   37 outils • Auth Bearer      │
           │   Consolidation LLM            │
           └──────┬──────────┬──────┬───────┘
                  │          │      │
@@ -259,7 +259,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 Outils MCP
 
-35 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
+37 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
 
 ### System (3 outils)
 
@@ -290,14 +290,17 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | `live_read`   | `space_id`, `limit?`, `category?`, `agent?` | Lit les notes live (filtres optionnels)                                                                                     |
 | `live_search` | `space_id`, `query`, `limit?`               | Recherche plein texte dans les notes                                                                                        |
 
-### Bank (5 outils)
+### Bank (7 outils)
 
-| Outil              | Paramètres             | Description                                                                                                |
-| ------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `bank_read`        | `space_id`, `filename` | Lit un fichier bank spécifique (ex: `activeContext.md`)                                                    |
-| `bank_read_all`    | `space_id`             | Lit toute la bank en une requête (🚀 démarrage agent)                                                     |
-| `bank_list`        | `space_id`             | Liste les fichiers bank (sans contenu)                                                                     |
-| `bank_consolidate` | `space_id`, `agent?`   | 🧠 Consolide les notes via LLM. `agent` vide = toutes les notes (admin). `agent=nom` = notes de cet agent |
+| Outil              | Paramètres                            | Description                                                                                                |
+| ------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `bank_read`        | `space_id`, `filename`                | Lit un fichier bank (supporte les sous-dossiers : `personaProfiles/acheteur.md`)                           |
+| `bank_read_all`    | `space_id`                            | Lit toute la bank en une requête (🚀 démarrage agent)                                                     |
+| `bank_list`        | `space_id`                            | Liste les fichiers bank avec chemins relatifs (sans contenu)                                               |
+| `bank_consolidate` | `space_id`, `agent?`                  | 🧠 Consolide les notes via LLM. `agent` vide = toutes les notes (admin). `agent=nom` = notes de cet agent |
+| `bank_repair`      | `space_id`, `dry_run?`                | 🔧 Répare les noms corrompus (Unicode, préfixes parasites). `dry_run=True` par défaut (admin)              |
+| `bank_write`       | `space_id`, `filename`, `content`     | ✏️ Écrit/remplace un fichier bank directement — contourne la consolidation LLM (admin)                    |
+| `bank_delete`      | `space_id`, `filename`                | 🗑️ Supprime un fichier bank + ses doublons Unicode (admin, irréversible)                                  |
 
 ### Graph (4 outils) — 🌉 Pont vers Graph Memory
 
@@ -575,7 +578,7 @@ Voir [scripts/README.md](scripts/README.md) pour le détail complet.
 
 ```
 live-memory/
-├── src/live_mem/              # Code source (35 outils MCP + interface web)
+├── src/live_mem/              # Code source (37 outils MCP + interface web)
 │   ├── server.py              # Serveur FastMCP + middlewares
 │   ├── config.py              # Configuration pydantic-settings
 │   ├── auth/                  # Authentification
@@ -601,7 +604,7 @@ live-memory/
 │       ├── system.py          #   3 outils (health, whoami, about)
 │       ├── space.py           #   8 outils (CRUD espaces) — 13 params
 │       ├── live.py            #   3 outils (notes) — 13 params
-│       ├── bank.py            #   4 outils (bank + consolidation) — 6 params
+│       ├── bank.py            #   7 outils (bank + consolidation + admin) — 10 params
 │       ├── graph.py           #   4 outils (Graph Bridge) — 8 params
 │       ├── backup.py          #   5 outils (snapshots) — 8 params
 │       └── admin.py           #   7 outils (tokens + GC + purge) — 14 params
@@ -623,7 +626,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.8.2
+├── VERSION                    # 0.9.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -686,4 +689,4 @@ Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.8.2 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v0.9.0 — Mémoire de travail partagée pour agents IA collaboratifs*

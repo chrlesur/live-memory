@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-0.8.2-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -118,7 +118,7 @@ Specifically, agents can:
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   35 tools • Auth Bearer       │
+          │   37 tools • Auth Bearer       │
           │   LLM Consolidation            │
           └──────┬──────────┬──────┬───────┘
                  │          │      │
@@ -258,7 +258,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 MCP Tools
 
-35 tools exposed via the MCP protocol (Streamable HTTP), divided into 7 categories.
+37 tools exposed via the MCP protocol (Streamable HTTP), divided into 7 categories.
 
 ### System (3 tools)
 
@@ -273,6 +273,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | Tool            | Parameters                                   | Description                                                |
 | --------------- | -------------------------------------------- | ---------------------------------------------------------- |
 | `space_create`  | `space_id`, `description`, `rules`, `owner?` | Creates a space with its rules (bank structure)            |
+| `space_update`  | `space_id`, `description?`, `owner?`         | Updates description and/or owner (rules remain immutable)  |
 | `space_list`    | —                                            | Lists spaces accessible by current token                   |
 | `space_info`    | `space_id`                                   | Detailed info (notes, bank, consolidation)                 |
 | `space_rules`   | `space_id`                                   | Reads immutable space rules                                |
@@ -288,14 +289,17 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | `live_read`   | `space_id`, `limit?`, `category?`, `agent?`          | Reads live notes (optional filters)                                                                    |
 | `live_search` | `space_id`, `query`, `limit?`                        | Full-text search in notes                                                                              |
 
-### Bank (5 tools)
+### Bank (7 tools)
 
-| Tool               | Parameters             | Description                                                                                                |
-| ------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `bank_read`        | `space_id`, `filename` | Reads a specific bank file (e.g., `activeContext.md`)                                                      |
-| `bank_read_all`    | `space_id`             | Reads entire bank in one request (🚀 agent startup)                                                        |
-| `bank_list`        | `space_id`             | Lists bank files (without content)                                                                         |
-| `bank_consolidate` | `space_id`, `agent?`   | 🧠 Consolidates notes via LLM. Empty `agent` = all notes (admin). `agent=name` = notes from this agent     |
+| Tool               | Parameters                        | Description                                                                                                |
+| ------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `bank_read`        | `space_id`, `filename`            | Reads a bank file (supports subfolders: `personaProfiles/buyer.md`)                                        |
+| `bank_read_all`    | `space_id`                        | Reads entire bank in one request (🚀 agent startup)                                                        |
+| `bank_list`        | `space_id`                        | Lists bank files with relative paths (without content)                                                     |
+| `bank_consolidate` | `space_id`, `agent?`              | 🧠 Consolidates notes via LLM. Empty `agent` = all notes (admin). `agent=name` = notes from this agent     |
+| `bank_repair`      | `space_id`, `dry_run?`            | 🔧 Repairs corrupted filenames (Unicode, parasitic prefixes). `dry_run=True` by default (admin)             |
+| `bank_write`       | `space_id`, `filename`, `content` | ✏️ Writes/replaces a bank file directly — bypasses LLM consolidation (admin)                               |
+| `bank_delete`      | `space_id`, `filename`            | 🗑️ Deletes a bank file + its Unicode duplicates (admin, irreversible)                                      |
 
 ### Graph (4 tools) — 🌉 Link to Graph Memory
 
@@ -593,7 +597,7 @@ python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 
 ```
 live-memory/
-├── src/live_mem/              # Source code (35 MCP tools + web interface)
+├── src/live_mem/              # Source code (37 MCP tools + web interface)
 │   ├── server.py              # FastMCP server + middlewares
 │   ├── config.py              # pydantic-settings configuration
 │   ├── auth/                  # Authentication
@@ -617,9 +621,9 @@ live-memory/
 │   │   └── models.py          #   Pydantic models
 │   └── tools/                 # MCP Tools (7 modules)
 │       ├── system.py          #   3 tools (health, whoami, about)
-│       ├── space.py           #   7 tools (spaces CRUD)
+│       ├── space.py           #   8 tools (spaces CRUD)
 │       ├── live.py            #   3 tools (notes)
-│       ├── bank.py            #   4 tools (bank + consolidation)
+│       ├── bank.py            #   7 tools (bank + consolidation + admin)
 │       ├── graph.py           #   4 tools (Graph Bridge)
 │       ├── backup.py          #   5 tools (snapshots)
 │       └── admin.py           #   7 tools (tokens + GC + purge)
@@ -630,7 +634,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 0.8.2
+├── VERSION                    # 0.9.0
 ├── CHANGELOG.md
 └── FAQ.md
 ```
@@ -681,4 +685,4 @@ Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v0.8.2 — Shared working memory for collaborative AI agents*
+*Live Memory v0.9.0 — Shared working memory for collaborative AI agents*

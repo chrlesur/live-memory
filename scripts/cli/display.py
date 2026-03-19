@@ -266,6 +266,76 @@ def show_bank_content(result: dict):
     ))
 
 
+def show_bank_write_result(result: dict):
+    """Affiche le résultat d'un bank_write."""
+    action = result.get("action", "?")
+    icon = "✏️ Remplacé" if action == "replaced" else "✨ Créé"
+    cleaned = result.get("unicode_duplicates_cleaned", 0)
+    lines = [
+        f"[bold]Fichier :[/bold] [cyan]{result.get('filename', '?')}[/cyan]",
+        f"[bold]Action  :[/bold] {icon}",
+        f"[bold]Taille  :[/bold] {result.get('size', 0)} octets",
+    ]
+    if cleaned:
+        lines.append(f"[bold]Doublons Unicode nettoyés :[/bold] [yellow]{cleaned}[/yellow]")
+    console.print(Panel.fit("\n".join(lines), title="📝 Bank Write", border_style="green"))
+
+
+def show_bank_delete_result(result: dict):
+    """Affiche le résultat d'un bank_delete."""
+    deleted = result.get("files_deleted", 0)
+    keys = result.get("keys_deleted", [])
+    lines = [
+        f"[bold]Fichier :[/bold] [cyan]{result.get('filename', '?')}[/cyan]",
+        f"[bold]Supprimés :[/bold] {deleted} fichier(s)",
+    ]
+    if len(keys) > 1:
+        lines.append(f"[bold]Variantes :[/bold] {', '.join(keys)}")
+    console.print(Panel.fit("\n".join(lines), title="🗑️ Bank Delete", border_style="red"))
+
+
+def show_bank_repair_result(result: dict):
+    """Affiche le résultat d'un bank_repair."""
+    mode = result.get("mode", "?")
+    mode_label = "[yellow]DRY-RUN (aucune modification)[/yellow]" if mode == "dry-run" else "[green]APPLIQUÉ[/green]"
+
+    console.print(Panel.fit(
+        f"[bold]Espace  :[/bold] [cyan]{result.get('space_id', '?')}[/cyan]\n"
+        f"[bold]Mode    :[/bold] {mode_label}\n"
+        f"[bold]Scannés :[/bold] {result.get('files_scanned', 0)} fichiers uniques\n"
+        f"[bold]OK      :[/bold] {result.get('files_ok', 0)}\n"
+        f"[bold]À réparer :[/bold] {result.get('files_to_repair', 0)}\n"
+        f"[bold]Doublons  :[/bold] {result.get('duplicates_found', 0)}",
+        title="🔧 Bank Repair", border_style="yellow" if mode == "dry-run" else "green",
+    ))
+
+    repairs = result.get("repairs", [])
+    if repairs:
+        table = Table(title="Fichiers à déplacer", show_header=True)
+        table.add_column("Original", style="red")
+        table.add_column("→", justify="center", width=2)
+        table.add_column("Corrigé", style="green")
+        table.add_column("Statut")
+        for r in repairs:
+            status_icon = "✅" if r.get("status") == "repaired" else "🔍"
+            table.add_row(r.get("original_relpath", "?"), "→", r.get("sanitized", "?"), status_icon)
+        console.print(table)
+
+    duplicates = result.get("duplicates", [])
+    if duplicates:
+        table = Table(title="Doublons à supprimer", show_header=True)
+        table.add_column("Fichier", style="red")
+        table.add_column("Canonique", style="dim")
+        table.add_column("Statut")
+        for d in duplicates:
+            status_icon = "🗑️" if d.get("status") == "deleted" else "🔍"
+            table.add_row(d.get("relpath", "?"), d.get("canonical", "?"), status_icon)
+        console.print(table)
+
+    if not repairs and not duplicates:
+        show_success("Tous les fichiers bank sont OK !")
+
+
 def show_consolidation_result(result: dict):
     """Affiche le résultat d'une consolidation."""
     console.print(Panel.fit(

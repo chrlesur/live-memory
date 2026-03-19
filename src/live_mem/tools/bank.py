@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Outils MCP — Catégorie Bank (5 outils).
+Outils MCP — Catégorie Bank (7 outils).
 
-Memory Bank consolidée : lire, lister, consolider via LLM, réparer.
+Memory Bank consolidée : lire, lister, consolider via LLM, réparer,
+écrire et supprimer manuellement.
 
 Permissions :
     - bank_read        🔑 (read)  — Lit un fichier bank spécifique
@@ -10,6 +11,8 @@ Permissions :
     - bank_list        🔑 (read)  — Liste les fichiers bank (sans contenu)
     - bank_consolidate ✏️ (write) — Déclenche la consolidation LLM
     - bank_repair      👑 (admin) — Répare les noms de fichiers corrompus par le LLM
+    - bank_write       👑 (admin) — Écrit/remplace un fichier bank directement
+    - bank_delete      👑 (admin) — Supprime un fichier bank
 
 La consolidation est l'opération qui transforme les notes live en
 fichiers bank structurés. Un seul consolidate à la fois par espace
@@ -26,13 +29,13 @@ from pydantic import Field
 
 def register(mcp: FastMCP) -> int:
     """
-    Enregistre les 4 outils bank sur l'instance MCP.
+    Enregistre les 7 outils bank sur l'instance MCP.
 
     Args:
         mcp: Instance FastMCP
 
     Returns:
-        Nombre d'outils enregistrés (4)
+        Nombre d'outils enregistrés (7)
     """
 
     @mcp.tool()
@@ -46,6 +49,11 @@ def register(mcp: FastMCP) -> int:
         Les fichiers bank sont du Markdown pur, créés et maintenus
         par le LLM lors de la consolidation.
 
+        Inclut un fallback Unicode : si la clé directe n'existe pas,
+        scanne les vraies clés S3 et cherche par correspondance sanitisée.
+        Cela résout le problème des fichiers avec des caractères Unicode
+        invisibles dans le nom.
+
         Args:
             space_id: Identifiant de l'espace
             filename: Nom du fichier (ex: "activeContext.md")
@@ -55,6 +63,7 @@ def register(mcp: FastMCP) -> int:
         """
         from ..auth.context import check_access
         from ..core.storage import get_storage
+        from ..core.consolidator import _sanitize_filename
 
         try:
             access_err = check_access(space_id)
@@ -66,6 +75,35 @@ def register(mcp: FastMCP) -> int:
             content = await storage.get(key)
 
             if content is None:
+                # Fallback : la clé S3 réelle peut contenir des caractères
+                # Unicode invisibles (bug LLM drift). On scanne les vraies
+                # clés et on cherche par correspondance sanitisée.
+                objects = await storage.list_objects(f"{space_id}/bank/")
+                sanitized_target = _sanitize_filename(filename)
+                matched_key = None
+
+                for obj in objects:
+                    raw_filename = obj["Key"].split("/")[-1]
+                    if _sanitize_filename(raw_filename) == sanitized_target:
+                        matched_key = obj["Key"]
+                        break
+
+                if matched_key:
+                    content = await storage.get(matched_key)
+                    if content is not None:
+                        return {
+                            "status": "ok",
+                            "space_id": space_id,
+                            "filename": filename,
+                            "content": content,
+                            "size": len(content.encode("utf-8")),
+                            "note": (
+                                f"Fichier trouvé via fallback Unicode "
+                                f"(clé S3 réelle: {matched_key.split('/')[-1]!r}). "
+                                f"Utilisez bank_repair pour corriger."
+                            ),
+                        }
+
                 return {
                     "status": "not_found",
                     "message": f"Fichier '{filename}' introuvable dans '{space_id}'",
@@ -115,10 +153,11 @@ def register(mcp: FastMCP) -> int:
                 }
 
             # Lire tous les fichiers bank
+            from ..core.storage import bank_relpath
             bank_data = await storage.list_and_get(f"{space_id}/bank/")
             files = [
                 {
-                    "filename": item["key"].split("/")[-1],
+                    "filename": bank_relpath(item["key"], space_id),
                     "content": item["content"],
                     "size": item["size"],
                 }
@@ -170,10 +209,11 @@ def register(mcp: FastMCP) -> int:
                 }
 
             # Lister les objets bank (sans les .keep)
+            from ..core.storage import bank_relpath
             objects = await storage.list_objects(f"{space_id}/bank/")
             files = [
                 {
-                    "filename": o["Key"].split("/")[-1],
+                    "filename": bank_relpath(o["Key"], space_id),
                     "size": o["Size"],
                     "last_modified": str(o.get("LastModified", "")),
                 }
@@ -301,17 +341,21 @@ def register(mcp: FastMCP) -> int:
         dry_run: Annotated[bool, Field(default=True, description="True = scan seul (liste les fichiers à réparer), False = applique les corrections")] = True,
     ) -> dict:
         """
-        Répare les noms de fichiers bank contenant des caractères Unicode
-        invisibles (bug LLM drift sur réponses JSON longues).
+        Répare les fichiers bank : caractères Unicode invisibles,
+        préfixes parasites (1.MEMORY_BANK/) et doublons multi-chemins.
 
-        Le LLM insère parfois des caractères invisibles (Zero Width Space,
-        Soft Hyphen, BOM, etc.) dans les noms de fichiers, rendant ceux-ci
-        illisibles par bank_read et l'interface web /live.
+        Détecte 3 types de problèmes :
+        1. Caractères Unicode invisibles dans les noms de fichiers
+        2. Préfixes parasites (1.MEMORY_BANK/, MEMORY_BANK/, bank/)
+        3. Doublons : même fichier sanitisé à des chemins S3 différents
 
-        L'outil scanne tous les fichiers bank via list_objects (vraies clés
-        S3), sanitise chaque nom, et si nécessaire :
-        - Écrit le contenu sous le nom propre
-        - Supprime l'ancien fichier avec le nom corrompu
+        Pour chaque fichier, extrait le chemin relatif complet,
+        le sanitise, et si le chemin canonique diffère :
+        - Écrit le contenu sous le chemin canonique
+        - Supprime l'ancien fichier
+
+        Si un doublon existe (même nom sanitisé, plusieurs clés S3),
+        garde la version la plus récente et supprime les autres.
 
         ⚠️ Par défaut dry_run=True : scanne et rapporte sans modifier.
         Passez dry_run=False pour appliquer les corrections.
@@ -321,7 +365,163 @@ def register(mcp: FastMCP) -> int:
             dry_run: True = scan seul, False = correction effective
 
         Returns:
-            Liste des fichiers réparés avec ancien/nouveau nom
+            Liste des fichiers réparés + doublons détectés
+        """
+        from ..auth.context import check_access, check_admin_permission
+        from ..core.storage import get_storage, bank_relpath
+        from ..core.consolidator import _sanitize_filename
+
+        try:
+            access_err = check_access(space_id)
+            if access_err:
+                return access_err
+
+            admin_err = check_admin_permission()
+            if admin_err:
+                return admin_err
+
+            storage = get_storage()
+
+            # Vérifier l'existence de l'espace
+            if not await storage.exists(f"{space_id}/_meta.json"):
+                return {
+                    "status": "not_found",
+                    "message": f"Espace '{space_id}' introuvable",
+                }
+
+            # Lister les vrais fichiers bank sur S3
+            objects = await storage.list_objects(f"{space_id}/bank/")
+
+            # Phase 1 : Scanner et grouper par nom sanitisé
+            # sanitized_name → [(s3_key, relpath, size, last_modified), ...]
+            groups: dict[str, list] = {}
+            for obj in objects:
+                key = obj["Key"]
+                if key.endswith(".keep"):
+                    continue
+
+                relpath = bank_relpath(key, space_id)
+                sanitized = _sanitize_filename(relpath)
+
+                if sanitized not in groups:
+                    groups[sanitized] = []
+                groups[sanitized].append({
+                    "key": key,
+                    "relpath": relpath,
+                    "size": obj["Size"],
+                    "last_modified": str(obj.get("LastModified", "")),
+                })
+
+            # Phase 2 : Identifier les réparations et doublons
+            repairs = []
+            duplicates = []
+            files_ok = 0
+
+            for sanitized, entries in groups.items():
+                canonical_key = f"{space_id}/bank/{sanitized}"
+
+                # Trier par date (plus récent d'abord) pour garder la meilleure version
+                entries.sort(key=lambda e: e["last_modified"], reverse=True)
+
+                if len(entries) == 1 and entries[0]["key"] == canonical_key:
+                    # Fichier OK : un seul exemplaire au bon chemin
+                    files_ok += 1
+                    continue
+
+                # Premier = version à garder (la plus récente)
+                best = entries[0]
+
+                if best["key"] != canonical_key:
+                    # Le fichier principal n'est pas au bon chemin → réparer
+                    repairs.append({
+                        "original_relpath": best["relpath"],
+                        "sanitized": sanitized,
+                        "original_key": best["key"],
+                        "canonical_key": canonical_key,
+                        "size": best["size"],
+                        "action": "move",
+                    })
+
+                # Les autres entrées sont des doublons à supprimer
+                for dup in entries[1:] if len(entries) > 1 else []:
+                    duplicates.append({
+                        "relpath": dup["relpath"],
+                        "key": dup["key"],
+                        "size": dup["size"],
+                        "canonical": sanitized,
+                        "action": "delete_duplicate",
+                    })
+
+            # Phase 3 : Appliquer si dry_run=False
+            if not dry_run:
+                for r in repairs:
+                    content = await storage.get(r["original_key"])
+                    if content is not None:
+                        await storage.put(r["canonical_key"], content)
+                        if r["original_key"] != r["canonical_key"]:
+                            await storage.delete(r["original_key"])
+                        r["status"] = "repaired"
+                    else:
+                        r["status"] = "error_read"
+
+                for d in duplicates:
+                    await storage.delete(d["key"])
+                    d["status"] = "deleted"
+            else:
+                for r in repairs:
+                    r["status"] = "would_repair"
+                for d in duplicates:
+                    d["status"] = "would_delete"
+
+            mode = "dry-run" if dry_run else "applied"
+            total_issues = len(repairs) + len(duplicates)
+            total_scanned = files_ok + len(groups) - files_ok  # = len(groups)
+
+            return {
+                "status": "ok",
+                "space_id": space_id,
+                "mode": mode,
+                "files_scanned": len(groups),
+                "files_ok": files_ok,
+                "files_to_repair": len(repairs),
+                "duplicates_found": len(duplicates),
+                "repairs": repairs,
+                "duplicates": duplicates,
+                "message": (
+                    f"{len(repairs)} fichier(s) à déplacer, "
+                    f"{len(duplicates)} doublon(s) à supprimer "
+                    f"sur {len(groups)} fichiers uniques. "
+                    + ("Passez dry_run=False pour appliquer." if dry_run and total_issues > 0 else "")
+                    + ("Corrections appliquées." if not dry_run and total_issues > 0 else "")
+                    + ("Tous les fichiers sont OK." if total_issues == 0 else "")
+                ),
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    @mcp.tool()
+    async def bank_write(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+        filename: Annotated[str, Field(description="Nom du fichier bank (ex: 'activeContext.md')")],
+        content: Annotated[str, Field(description="Contenu Markdown complet du fichier")],
+    ) -> dict:
+        """
+        Écrit ou remplace un fichier dans la Memory Bank (admin).
+
+        ⚠️ Cet outil contourne la consolidation LLM — il écrit directement
+        dans la bank. À utiliser pour les corrections manuelles quand la
+        consolidation échoue (doublons, contenu tronqué, migration).
+
+        Si un fichier avec le même nom existe déjà, il est remplacé.
+        Les éventuels doublons Unicode sont automatiquement nettoyés.
+
+        Args:
+            space_id: Identifiant de l'espace
+            filename: Nom du fichier à écrire
+            content: Contenu Markdown complet
+
+        Returns:
+            Statut de l'écriture avec taille du fichier
         """
         from ..auth.context import check_access, check_admin_permission
         from ..core.storage import get_storage
@@ -345,67 +545,122 @@ def register(mcp: FastMCP) -> int:
                     "message": f"Espace '{space_id}' introuvable",
                 }
 
-            # Lister les vrais fichiers bank sur S3
-            objects = await storage.list_objects(f"{space_id}/bank/")
-            repairs = []
-            skipped = 0
-
-            for obj in objects:
-                key = obj["Key"]
-                if key.endswith(".keep"):
-                    continue
-
-                original_filename = key.split("/")[-1]
-                sanitized_filename = _sanitize_filename(original_filename)
-
-                if sanitized_filename == original_filename:
-                    skipped += 1
-                    continue
-
-                # Ce fichier a besoin d'être réparé
-                repair_info = {
-                    "original": original_filename,
-                    "sanitized": sanitized_filename,
-                    "original_key": key,
-                    "sanitized_key": f"{space_id}/bank/{sanitized_filename}",
+            # Sanitiser le filename
+            sanitized = _sanitize_filename(filename)
+            if not sanitized:
+                return {
+                    "status": "error",
+                    "message": f"Nom de fichier invalide : '{filename}'",
                 }
 
-                if not dry_run:
-                    # Lire le contenu via la vraie clé S3
-                    content = await storage.get(key)
-                    if content is not None:
-                        # Écrire avec le nom propre
-                        await storage.put(
-                            f"{space_id}/bank/{sanitized_filename}",
-                            content,
-                        )
-                        # Supprimer l'ancien
-                        await storage.delete(key)
-                        repair_info["status"] = "repaired"
-                    else:
-                        repair_info["status"] = "error_read"
-                else:
-                    repair_info["status"] = "would_repair"
+            # Écrire le fichier avec le nom canonique
+            canonical_key = f"{space_id}/bank/{sanitized}"
+            existed = await storage.exists(canonical_key)
+            await storage.put(canonical_key, content)
 
-                repairs.append(repair_info)
+            # Nettoyer les doublons Unicode (clés S3 qui sanitisent vers
+            # le même nom mais avec des caractères invisibles)
+            cleaned = 0
+            objects = await storage.list_objects(f"{space_id}/bank/")
+            for obj in objects:
+                raw_key = obj["Key"]
+                if raw_key == canonical_key or raw_key.endswith(".keep"):
+                    continue
+                raw_filename = raw_key.split("/")[-1]
+                if _sanitize_filename(raw_filename) == sanitized:
+                    await storage.delete(raw_key)
+                    cleaned += 1
 
-            mode = "dry-run" if dry_run else "applied"
-            return {
+            action = "replaced" if existed else "created"
+            result = {
                 "status": "ok",
                 "space_id": space_id,
-                "mode": mode,
-                "files_scanned": skipped + len(repairs),
-                "files_ok": skipped,
-                "files_to_repair": len(repairs),
-                "repairs": repairs,
-                "message": (
-                    f"{len(repairs)} fichier(s) à réparer sur {skipped + len(repairs)} scannés. "
-                    + ("Passez dry_run=False pour appliquer." if dry_run and repairs else "")
-                    + ("Corrections appliquées." if not dry_run and repairs else "")
-                    + ("Tous les fichiers sont OK." if not repairs else "")
-                ),
+                "filename": sanitized,
+                "action": action,
+                "size": len(content.encode("utf-8")),
             }
+            if cleaned > 0:
+                result["unicode_duplicates_cleaned"] = cleaned
+            return result
+
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    return 5  # Nombre d'outils enregistrés
+    @mcp.tool()
+    async def bank_delete(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+        filename: Annotated[str, Field(description="Nom du fichier bank à supprimer")],
+    ) -> dict:
+        """
+        Supprime un fichier de la Memory Bank (admin).
+
+        Supprime aussi tous les doublons (fichiers avec le même
+        nom sanitisé à des chemins S3 différents).
+
+        ⚠️ Irréversible. Utilisez bank_read pour sauvegarder le contenu
+        avant de supprimer si nécessaire.
+
+        Args:
+            space_id: Identifiant de l'espace
+            filename: Nom du fichier à supprimer (peut inclure un sous-dossier)
+
+        Returns:
+            Nombre de fichiers supprimés (incluant les doublons)
+        """
+        from ..auth.context import check_access, check_admin_permission
+        from ..core.storage import get_storage, bank_relpath
+        from ..core.consolidator import _sanitize_filename
+
+        try:
+            access_err = check_access(space_id)
+            if access_err:
+                return access_err
+
+            admin_err = check_admin_permission()
+            if admin_err:
+                return admin_err
+
+            storage = get_storage()
+
+            # Vérifier l'existence de l'espace
+            if not await storage.exists(f"{space_id}/_meta.json"):
+                return {
+                    "status": "not_found",
+                    "message": f"Espace '{space_id}' introuvable",
+                }
+
+            sanitized = _sanitize_filename(filename)
+
+            # Trouver toutes les clés S3 qui sanitisent vers ce nom
+            # (= le fichier canonique + tous ses doublons)
+            objects = await storage.list_objects(f"{space_id}/bank/")
+            keys_to_delete = []
+            for obj in objects:
+                raw_key = obj["Key"]
+                if raw_key.endswith(".keep"):
+                    continue
+                raw_relpath = bank_relpath(raw_key, space_id)
+                if _sanitize_filename(raw_relpath) == sanitized:
+                    keys_to_delete.append(raw_key)
+
+            if not keys_to_delete:
+                return {
+                    "status": "not_found",
+                    "message": f"Fichier '{filename}' introuvable dans '{space_id}'",
+                }
+
+            # Supprimer toutes les variantes
+            deleted = await storage.delete_many(keys_to_delete)
+
+            return {
+                "status": "deleted",
+                "space_id": space_id,
+                "filename": sanitized,
+                "files_deleted": deleted,
+                "keys_deleted": [k.split("/")[-1] for k in keys_to_delete],
+            }
+
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    return 7  # Nombre d'outils enregistrés

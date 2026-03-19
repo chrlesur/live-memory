@@ -21,6 +21,7 @@ from .display import (
     show_health_result, show_whoami_result, show_about_result,
     show_space_created, show_space_updated, show_space_list, show_space_info, show_rules, show_notes,
     show_bank_list, show_bank_content, show_consolidation_result,
+    show_bank_write_result, show_bank_delete_result, show_bank_repair_result,
     show_graph_connected, show_graph_status, show_graph_push_result, show_graph_disconnected,
     show_token_created, show_token_list,
     show_backup_created, show_backup_list,
@@ -51,6 +52,9 @@ SHELL_COMMANDS = {
     "bank read": "Lire un fichier bank (bank read <space> <file>)",
     "bank read-all": "Lire toute la bank (bank read-all <space>)",
     "bank consolidate": "Consolider via LLM (bank consolidate <space>)",
+    "bank write": "Écrire un fichier bank (bank write <space> <file> -f <path.md>) admin",
+    "bank delete": "Supprimer un fichier bank (bank delete <space> <file>) admin",
+    "bank repair": "Réparer noms corrompus (bank repair <space> [--apply]) admin",
     "token create": "Créer un token (token create <name> -p <read|read,write|read,write,admin> [--email <email>])",
     "token update": "Modifier un token (token update <hash> --permissions <perms> --space-ids <ids>)",
     "token list": "Lister les tokens",
@@ -345,8 +349,57 @@ async def _handle_bank(client, args, json_out):
         result = await client.call_tool("bank_consolidate", {"space_id": args[1]})
         (show_json if json_out else show_consolidation_result)(result) if result.get("status") == "ok" else show_error(result.get("message", "?"))
 
+    elif sub == "write" and len(args) >= 3:
+        space_id = args[1]
+        filename = args[2]
+        content_val = ""
+        content_file = ""
+        remaining = args[3:]
+        i = 0
+        while i < len(remaining):
+            flag = remaining[i]
+            if flag in ("-f", "--content-file") and i + 1 < len(remaining):
+                content_file = remaining[i + 1]
+                i += 2
+            elif flag in ("-c", "--content") and i + 1 < len(remaining):
+                content_val = remaining[i + 1]
+                i += 2
+            else:
+                # Contenu inline sans flag
+                if not content_val:
+                    content_val = " ".join(remaining[i:])
+                    break
+                i += 1
+        if content_file and not content_val:
+            try:
+                content_val = Path(content_file).read_text(encoding="utf-8")
+            except Exception as e:
+                show_error(f"Impossible de lire {content_file}: {e}")
+                return
+        if not content_val:
+            console.print("[yellow]Usage: bank write <space> <filename> -f <path.md>[/yellow]")
+            console.print("[yellow]  ou : bank write <space> <filename> -c \"contenu inline\"[/yellow]")
+            return
+        result = await client.call_tool("bank_write", {
+            "space_id": space_id, "filename": filename, "content": content_val,
+        })
+        (show_json if json_out else show_bank_write_result)(result) if result.get("status") == "ok" else show_error(result.get("message", "?"))
+
+    elif sub == "delete" and len(args) >= 3:
+        result = await client.call_tool("bank_delete", {
+            "space_id": args[1], "filename": args[2],
+        })
+        (show_json if json_out else show_bank_delete_result)(result) if result.get("status") == "deleted" else show_error(result.get("message", "?"))
+
+    elif sub == "repair" and len(args) >= 2:
+        dry_run = "--apply" not in args
+        result = await client.call_tool("bank_repair", {
+            "space_id": args[1], "dry_run": dry_run,
+        })
+        (show_json if json_out else show_bank_repair_result)(result) if result.get("status") == "ok" else show_error(result.get("message", "?"))
+
     else:
-        show_warning("Usage: bank [list|read|read-all|consolidate] ...")
+        show_warning("Usage: bank [list|read|read-all|consolidate|write|delete|repair] ...")
 
 
 # Permissions valides (partagé avec le handler token)
@@ -580,10 +633,10 @@ async def run_shell(url: str, token: str):
 
     # Autocomplétion avec tous les mots-clés
     words = list(SHELL_COMMANDS.keys()) + [
-        "--json", "--confirm", "--all",
+        "--json", "--confirm", "--all", "--apply",
         "--permissions", "-p", "--space-ids", "-s",
         "--description", "-d", "--rules-file", "-r", "--rules", "--owner", "-o",
-        "--email", "-e",
+        "--email", "-e", "--content-file", "-f", "--content", "-c",
         "read", "read,write", "read,write,admin",
     ]
     completer = WordCompleter(words, ignore_case=True)

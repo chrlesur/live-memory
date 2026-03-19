@@ -43,24 +43,22 @@ Ce qui fonctionne, ce qui reste, problèmes connus.
 
 ## Agents et tokens
 
-### Quelle différence entre un token et un agent ?
+### Quelle est la relation entre un token et un agent ?
 
-|                        | **Token**                         | **Agent**                          |
-| ---------------------- | --------------------------------- | ---------------------------------- |
-| **Rôle**               | Authentification (qui a le droit) | Identité (qui écrit)               |
-| **Exemple**            | `lm_abc123...`                    | `"agent-cline"`                    |
-| **Partageable ?**      | Oui, entre plusieurs agents       | Non, chaque agent a son nom        |
-| **Où est-il fourni ?** | Header `Authorization: Bearer`    | Paramètre `agent=` dans les appels |
+Depuis **v0.8.1**, chaque token **est** un agent. Le `client_name` du token est automatiquement utilisé comme identité de l'agent — il n'y a plus de paramètre `agent=` dans `live_note`.
 
-Un token `team-devops` peut être utilisé par `agent-alice` et `agent-bob`. Chaque agent fournit son nom dans `live_note(agent="alice")` et `bank_consolidate(agent="alice")`.
+|                        | **Token = Agent**                                    |
+| ---------------------- | ---------------------------------------------------- |
+| **Rôle**               | Authentification **et** identité                     |
+| **Exemple**            | Token `cline-dev` → agent `cline-dev`                |
+| **Partageable ?**      | Non — 1 token = 1 agent = 1 identité                |
+| **Où est-il fourni ?** | Header `Authorization: Bearer` (auto-détecté)        |
 
-### Que se passe-t-il si je ne mets pas de paramètre agent= ?
-
-Le serveur utilise le `client_name` du token comme fallback. Mais il est **recommandé** de toujours fournir `agent=` explicitement pour la traçabilité.
+**Pourquoi ce changement ?** L'ancien modèle (Token ≠ Agent) permettait de passer un nom d'agent libre, ce qui causait des notes orphelines (agent non reconnu à la consolidation), de l'usurpation d'identité, et de l'éparpillement.
 
 ### Un agent peut-il lire les notes d'un autre agent ?
 
-Oui ! `live_read(space_id="mon-projet")` retourne les notes de TOUS les agents. C'est le principe de la collaboration : chaque agent voit le travail des autres.
+Oui ! `live_read(space_id="mon-projet")` retourne les notes de TOUS les agents. C'est le principe de la collaboration : chaque agent voit le travail des autres. Vous pouvez aussi filtrer par agent : `live_read(space_id="mon-projet", agent="claude-review")`.
 
 ---
 

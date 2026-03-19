@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-from .storage import get_storage
+from .storage import get_storage, bank_relpath
 from .models import GraphMemoryConfig
 
 logger = logging.getLogger("live_mem.graph_bridge")
@@ -409,7 +409,7 @@ class GraphBridgeService:
         # Lire tous les fichiers bank depuis S3
         bank_data = await storage.list_and_get(f"{space_id}/bank/")
         bank_files = {
-            item["key"].split("/")[-1]: item["content"]
+            bank_relpath(item["key"], space_id): item["content"]
             for item in bank_data
         }
 

@@ -5,6 +5,42 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [0.9.0] — 2026-03-19
+
+### Changé — Support natif des sous-dossiers dans la Memory Bank
+
+**Refonte architecturale** — La bank supporte désormais les fichiers dans des sous-dossiers (ex: `personaProfiles/acheteur.md`). Auparavant, tous les `split("/")[-1]` dans le code ne gardaient que le basename des clés S3, ce qui causait des doublons quand le LLM créait des fichiers dans des sous-répertoires définis par les rules.
+
+- **Cause racine identifiée** — Bug découvert sur le space `presales` : les rules mentionnent `personaProfiles/` comme dossier et `1.MEMORY_BANK/` comme répertoire racine. Le LLM créait des fichiers aux chemins `presales/bank/personaProfiles/acheteur.md` et `presales/bank/1.MEMORY_BANK/personaProfiles/acheteur.md`, mais le code extrayait uniquement `acheteur.md` → doublons avec perte de correspondance → `bank_read("acheteur.md")` retournait "not_found".
+- **`bank_relpath(s3_key, space_id)`** — Nouvelle fonction utilitaire dans `storage.py`. Extrait le chemin relatif complet depuis le préfixe `{space_id}/bank/`. Ex: `presales/bank/personaProfiles/acheteur.md` → `personaProfiles/acheteur.md`.
+- **21 occurrences de `split("/")[-1]` remplacées** par `bank_relpath()` dans 6 fichiers : consolidator.py, bank.py (tools), space.py, graph_bridge.py.
+- **`_sanitize_filename()` enrichi** — Garde les `/` (sous-dossiers légitimes). Supprime les préfixes parasites que le LLM invente en lisant les rules (`1.MEMORY_BANK/`, `MEMORY_BANK/`, `bank/`). Nettoie les `/` en début/fin et les doubles `//`.
+- **Nettoyage auto des doublons** — Lors de chaque écriture bank (create/edit/rewrite), le consolidateur supprime automatiquement les anciennes clés S3 qui sanitisent vers le même nom de fichier.
+- **`bank_read` avec fallback** — Si la clé directe n'existe pas, scanne les clés S3 réelles et cherche par correspondance sanitisée.
+
+### Ajouté — 2 nouveaux outils MCP : `bank_write` et `bank_delete`
+
+- **`bank_write`** 👑 (admin) — Écrit ou remplace un fichier bank directement, sans passer par la consolidation LLM. Utile pour les corrections manuelles, les migrations, et les cas où la consolidation échoue. Nettoie automatiquement les doublons Unicode.
+- **`bank_delete`** 👑 (admin) — Supprime un fichier bank et tous ses doublons (clés S3 avec le même nom sanitisé). Irréversible.
+- **37 outils MCP** (était 35) — catégorie Bank passe de 5 à 7 outils.
+
+### Fichiers modifiés
+| Fichier                            | Changements                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `src/live_mem/core/storage.py`     | + `bank_relpath()` — extraction chemin relatif bank depuis clé S3                                 |
+| `src/live_mem/core/consolidator.py`| `_sanitize_filename()` : garde `/`, supprime préfixes parasites. `_build_prompt()` + `_write_results()` : utilisent `bank_relpath`. Nettoyage auto doublons. |
+| `src/live_mem/tools/bank.py`       | `bank_read_all`/`bank_list` : retournent chemins relatifs. + `bank_write` et `bank_delete` (admin). `bank_read` avec fallback Unicode. 7 outils (était 5). |
+| `src/live_mem/core/space.py`       | `get_info()` et `get_summary()` : utilisent `bank_relpath`                                        |
+| `src/live_mem/core/graph_bridge.py`| `push()` : utilise `bank_relpath`                                                                 |
+| `VERSION`                          | 0.8.2 → 0.9.0                                                                                    |
+
+### ⚠️ À compléter (follow-up)
+- CLI Click : ajouter commandes `bank write`, `bank delete`, `bank repair`
+- Shell interactif : ajouter handlers correspondants
+- Web UI bank.js : affichage raccourci des noms longs dans les onglets (cosmétique, fonctionnel en l'état)
+
+---
+
 ## [0.8.2] — 2026-03-16
 
 ### Ajouté — Nouveau template de rules `book.memory.bank.md` et fix shell `space create`

@@ -307,6 +307,64 @@ def bank_consolidate_cmd(ctx, space_id, jflag):
     _run_tool(ctx, "bank_consolidate", {"space_id": space_id}, show_consolidation_result, jflag)
 
 
+@bank_grp.command("write")
+@click.argument("space_id")
+@click.argument("filename")
+@click.option("--content-file", "-f", type=click.Path(exists=True), help="Fichier source (.md)")
+@click.option("--content", "-c", default="", help="Contenu en ligne")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def bank_write_cmd(ctx, space_id, filename, content_file, content, jflag):
+    """✏️ Écrire/remplacer un fichier bank (admin, contourne le LLM).
+
+    \b
+    Exemples :
+      bank write mon-projet activeContext.md -f ./context.md
+      bank write mon-projet progress.md -c "# Progress\\n- v1 OK"
+    """
+    if content_file:
+        content = open(content_file, encoding="utf-8").read()
+    if not content:
+        show_error("Contenu requis : --content-file/-f ou --content/-c")
+        return
+    from .display import show_bank_write_result
+    _run_tool(ctx, "bank_write", {
+        "space_id": space_id, "filename": filename, "content": content,
+    }, show_bank_write_result, jflag)
+
+
+@bank_grp.command("delete")
+@click.argument("space_id")
+@click.argument("filename")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def bank_delete_cmd(ctx, space_id, filename, jflag):
+    """🗑️ Supprimer un fichier bank + doublons (admin, irréversible)."""
+    from .display import show_bank_delete_result
+    _run_tool(ctx, "bank_delete", {
+        "space_id": space_id, "filename": filename,
+    }, show_bank_delete_result, jflag)
+
+
+@bank_grp.command("repair")
+@click.argument("space_id")
+@click.option("--apply", is_flag=True, help="Appliquer les corrections (sinon dry-run)")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def bank_repair_cmd(ctx, space_id, apply, jflag):
+    """🔧 Réparer les noms corrompus (Unicode, doublons). Dry-run par défaut.
+
+    \b
+    Exemples :
+      bank repair mon-projet              # Scan seul (dry-run)
+      bank repair mon-projet --apply      # Appliquer les corrections
+    """
+    from .display import show_bank_repair_result
+    _run_tool(ctx, "bank_repair", {
+        "space_id": space_id, "dry_run": not apply,
+    }, show_bank_repair_result, jflag)
+
+
 # ─────────────────────────────────────────────────────────────
 # Token (sous-groupe)
 # ─────────────────────────────────────────────────────────────

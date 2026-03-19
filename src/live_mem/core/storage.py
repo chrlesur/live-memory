@@ -438,6 +438,42 @@ class StorageService:
 
 
 # =============================================================================
+# Utilitaires pour les chemins bank
+# =============================================================================
+
+
+def bank_relpath(s3_key: str, space_id: str) -> str:
+    """
+    Extrait le chemin relatif d'un fichier bank depuis sa clé S3 complète.
+
+    La bank supporte les sous-dossiers (v0.9.0). Le "filename" d'un fichier
+    bank est son chemin relatif depuis {space_id}/bank/, pas juste le basename.
+
+    Exemples :
+        bank_relpath("presales/bank/acheteur.md", "presales")
+            → "acheteur.md"
+        bank_relpath("presales/bank/personaProfiles/acheteur.md", "presales")
+            → "personaProfiles/acheteur.md"
+        bank_relpath("presales/bank/1.MEMORY_BANK/foo.md", "presales")
+            → "1.MEMORY_BANK/foo.md"
+
+    Args:
+        s3_key: Clé S3 complète du fichier
+        space_id: Identifiant de l'espace
+
+    Returns:
+        Chemin relatif depuis le dossier bank/
+    """
+    prefix = f"{space_id}/bank/"
+    if s3_key.startswith(prefix):
+        relpath = s3_key[len(prefix):]
+        if relpath:
+            return relpath
+    # Fallback : juste le dernier segment (rétrocompat)
+    return s3_key.split("/")[-1]
+
+
+# =============================================================================
 # Singleton
 # =============================================================================
 

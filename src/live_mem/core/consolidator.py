@@ -30,7 +30,7 @@ from typing import Optional
 from openai import AsyncOpenAI
 
 from ..config import get_settings
-from .storage import get_storage
+from .storage import get_storage, bank_relpath
 
 logger = logging.getLogger("live_mem.consolidator")
 
@@ -382,10 +382,14 @@ class ConsolidatorService:
             notes_section += f"\n--- Note {i}/{len(notes)} ---\n{content}\n"
 
         # Construire la section bank (fichiers existants avec leur contenu)
+        # On sanitise les filenames pour que le LLM voie des noms propres
+        # (pas contaminés par des caractères Unicode invisibles).
         if bank_files:
             bank_section = ""
             for bf in bank_files:
-                filename = bf["key"].split("/")[-1]
+                # Extraire le chemin relatif complet (supporte les sous-dossiers)
+                raw_relpath = bank_relpath(bf["key"], space_id)
+                filename = _sanitize_filename(raw_relpath)
                 bank_section += (
                     f"\n--- Fichier: {filename} ---\n"
                     f"{bf['content']}\n"
@@ -584,16 +588,44 @@ Retourne un JSON avec cette structure exacte :
         """
         storage = get_storage()
 
-        # Construire un index des fichiers bank existants par filename
-        bank_index = {}
+        # Construire un index des fichiers bank existants par filename SANITISÉ.
+        # On sanitise les clés pour matcher avec les filenames du LLM (qui sont
+        # aussi sanitisés). On garde la correspondance raw_key → sanitized pour
+        # pouvoir nettoyer les anciennes clés S3 contaminées par Unicode.
+        bank_index = {}         # sanitized_filename → content
+        bank_raw_keys = {}      # sanitized_filename → [liste des clés S3 brutes]
         for bf in bank_files:
-            filename = bf["key"].split("/")[-1]
-            bank_index[filename] = bf["content"]
+            raw_key = bf["key"]
+            # Extraire le chemin relatif complet (supporte les sous-dossiers)
+            raw_relpath = bank_relpath(raw_key, space_id)
+            sanitized = _sanitize_filename(raw_relpath)
+            # Si plusieurs clés S3 sanitisent vers le même nom → doublons !
+            # On garde la version la plus récente (dernière dans la liste triée)
+            bank_index[sanitized] = bf["content"]
+            if sanitized not in bank_raw_keys:
+                bank_raw_keys[sanitized] = []
+            bank_raw_keys[sanitized].append(raw_key)
 
         files_created = 0
         files_updated = 0
+        files_cleaned = 0
         operations_applied = 0
         operations_failed = 0
+
+        async def _cleanup_unicode_duplicates(sanitized_name: str) -> None:
+            """Supprime les anciennes clés S3 contaminées par Unicode
+            qui sanitisent vers le même nom de fichier."""
+            nonlocal files_cleaned
+            canonical_key = f"{space_id}/bank/{sanitized_name}"
+            raw_keys = bank_raw_keys.get(sanitized_name, [])
+            for rk in raw_keys:
+                if rk != canonical_key:
+                    logger.info(
+                        "Cleaning Unicode duplicate: %r → canonical %s",
+                        rk, canonical_key,
+                    )
+                    await storage.delete(rk)
+                    files_cleaned += 1
 
         # 4a. Appliquer chaque édition de fichier
         for file_edit in llm_output.get("file_edits", []):
@@ -609,6 +641,7 @@ Retourne un JSON avec cette structure exacte :
                 content = file_edit.get("content", "")
                 if content:
                     await storage.put(f"{space_id}/bank/{filename}", content)
+                    await _cleanup_unicode_duplicates(filename)
                     files_created += 1
                     logger.info("Created bank file: %s", filename)
 
@@ -618,6 +651,7 @@ Retourne un JSON avec cette structure exacte :
                 reason = file_edit.get("reason", "non spécifiée")
                 if content:
                     await storage.put(f"{space_id}/bank/{filename}", content)
+                    await _cleanup_unicode_duplicates(filename)
                     files_updated += 1
                     logger.info(
                         "Rewrote bank file: %s (reason: %s)", filename, reason
@@ -658,6 +692,7 @@ Retourne un JSON avec cette structure exacte :
                 # Écrire seulement si le contenu a changé
                 if updated_content != existing_content:
                     await storage.put(f"{space_id}/bank/{filename}", updated_content)
+                    await _cleanup_unicode_duplicates(filename)
                     files_updated += 1
                     logger.info(
                         "Updated bank file: %s (%d operations applied)",
@@ -820,6 +855,25 @@ def _sanitize_filename(filename: str) -> str:
             chars.append(ch)
 
     sanitized = ''.join(chars).strip()
+
+    # Nettoyer les préfixes parasites que le LLM invente en lisant les rules.
+    # Ex: les rules presales disent "ILS SONT DANS LE REPERTOIRE 1.MEMORY_BANK"
+    # → le LLM retourne "1.MEMORY_BANK/personaProfiles/acheteur.md"
+    # On retire ces préfixes connus mais on GARDE les sous-dossiers légitimes.
+    _PARASITIC_PREFIXES = ("1.MEMORY_BANK/", "MEMORY_BANK/", "bank/")
+    for prefix in _PARASITIC_PREFIXES:
+        if sanitized.startswith(prefix):
+            old = sanitized
+            sanitized = sanitized[len(prefix):]
+            logger.warning(
+                "Filename parasitic prefix removed: %r → %r",
+                old, sanitized,
+            )
+
+    # Nettoyer les / en début/fin et les doubles //
+    sanitized = sanitized.strip("/")
+    while "//" in sanitized:
+        sanitized = sanitized.replace("//", "/")
 
     if removed > 0 or normalized > 0:
         logger.warning(

@@ -713,6 +713,87 @@ async def suite_qualite(admin: MCPClient, url: str, do_cleanup: bool):
         except Exception as e:
             test_fail(tool, str(e))
 
+    # Bank admin tools — tests sous-dossiers v0.9.0
+    section("Qualité — Bank sous-dossiers (v0.9.0)")
+
+    # 1. Écrire un fichier dans un sous-dossier
+    try:
+        r = await admin.call_tool("bank_write", {
+            "space_id": QUALITE_SPACE,
+            "filename": "subdir/test_file.md",
+            "content": "# Test\n\nFichier de test dans un sous-dossier.",
+        })
+        if r.get("status") == "ok":
+            test_pass("bank_write (subdir)", f"subdir/test_file.md ({r.get('size',0)} o)")
+        else:
+            test_fail("bank_write (subdir)", str(r))
+    except Exception as e:
+        test_fail("bank_write (subdir)", str(e))
+
+    # 2. Vérifier que bank_list retourne le chemin relatif complet (pas le basename)
+    try:
+        r = await agent.call_tool("bank_list", {"space_id": QUALITE_SPACE})
+        filenames = [f.get("filename", "") for f in r.get("files", [])]
+        if "subdir/test_file.md" in filenames:
+            test_pass("bank_list (relpath)", f"'subdir/test_file.md' trouvé dans {filenames}")
+        elif "test_file.md" in filenames:
+            test_fail("bank_list (relpath)", f"retourne basename au lieu du chemin relatif: {filenames}")
+        else:
+            test_fail("bank_list (relpath)", f"fichier non trouvé dans: {filenames}")
+    except Exception as e:
+        test_fail("bank_list (relpath)", str(e))
+
+    # 3. Vérifier que bank_read_all retourne le chemin relatif complet
+    try:
+        r = await agent.call_tool("bank_read_all", {"space_id": QUALITE_SPACE})
+        filenames = [f.get("filename", "") for f in r.get("files", [])]
+        if "subdir/test_file.md" in filenames:
+            test_pass("bank_read_all (relpath)", f"'subdir/test_file.md' trouvé")
+        elif "test_file.md" in filenames:
+            test_fail("bank_read_all (relpath)", f"retourne basename: {filenames}")
+        else:
+            test_fail("bank_read_all (relpath)", f"fichier non trouvé dans: {filenames}")
+    except Exception as e:
+        test_fail("bank_read_all (relpath)", str(e))
+
+    # 4. Lire le fichier par chemin relatif
+    try:
+        r = await agent.call_tool("bank_read", {
+            "space_id": QUALITE_SPACE,
+            "filename": "subdir/test_file.md",
+        })
+        if r.get("status") == "ok" and "Test" in r.get("content", ""):
+            test_pass("bank_read (subdir)", f"OK ({r.get('size',0)} o)")
+        else:
+            test_fail("bank_read (subdir)", str(r))
+    except Exception as e:
+        test_fail("bank_read (subdir)", str(e))
+
+    # 5. Supprimer par chemin relatif
+    try:
+        r = await admin.call_tool("bank_delete", {
+            "space_id": QUALITE_SPACE,
+            "filename": "subdir/test_file.md",
+        })
+        if r.get("status") == "deleted":
+            test_pass("bank_delete (subdir)", f"{r.get('files_deleted',0)} supprimés")
+        else:
+            test_fail("bank_delete (subdir)", str(r))
+    except Exception as e:
+        test_fail("bank_delete (subdir)", str(e))
+
+    # 6. bank_repair dry-run (doit être propre après cleanup)
+    try:
+        r = await admin.call_tool("bank_repair", {
+            "space_id": QUALITE_SPACE, "dry_run": True,
+        })
+        if r.get("status") == "ok":
+            test_pass("bank_repair", f"scan: {r.get('files_ok',0)} OK, {r.get('files_to_repair',0)} à réparer, {r.get('duplicates_found',0)} doublons")
+        else:
+            test_fail("bank_repair", str(r))
+    except Exception as e:
+        test_fail("bank_repair", str(e))
+
     # Backup
     section("Qualité — Backup")
     backup_id = ""

@@ -21,7 +21,7 @@ import io
 from datetime import datetime, timezone
 from typing import Optional
 
-from .storage import get_storage
+from .storage import get_storage, bank_relpath
 from .models import SpaceMeta
 
 
@@ -260,7 +260,7 @@ class SpaceService:
             "bank": {
                 "files_count": len(bank_files),
                 "total_size": sum(o["Size"] for o in bank_files),
-                "files": [o["Key"].split("/")[-1] for o in bank_files],
+                "files": [bank_relpath(o["Key"], space_id) for o in bank_files],
             },
             "last_consolidation": meta.get("last_consolidation"),
             "consolidation_count": meta.get("consolidation_count", 0),
@@ -307,7 +307,7 @@ class SpaceService:
         bank_data = await storage.list_and_get(f"{space_id}/bank/")
         bank_files = [
             {
-                "filename": item["key"].split("/")[-1],
+                "filename": bank_relpath(item["key"], space_id),
                 "content": item["content"],
                 "size": item["size"],
             }
