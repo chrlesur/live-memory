@@ -137,7 +137,7 @@ def register(mcp: FastMCP) -> int:
             "version": _read_version(),
             "description": "Mémoire de travail partagée pour agents IA collaboratifs",
             "author": "Cloud Temple",
-            "documentation": "https://github.com/chrlesur/live-memory",
+            "documentation": "https://github.com/Cloud-Temple/live-memory",
             "python_version": platform.python_version(),
             "platform": platform.platform(),
             "tools_count": len(tools),

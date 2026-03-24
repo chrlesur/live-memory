@@ -92,7 +92,7 @@ async def system_about() -> dict:
   "version": "0.8.0",
   "description": "Mémoire de travail partagée pour agents IA collaboratifs",
   "author": "Cloud Temple",
-  "documentation": "https://github.com/chrlesur/live-memory",
+  "documentation": "https://github.com/Cloud-Temple/live-memory",
   "python_version": "3.14.3",
   "tools_count": 35,
   "tools": [

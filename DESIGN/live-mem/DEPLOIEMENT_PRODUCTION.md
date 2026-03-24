@@ -42,7 +42,7 @@ docker compose version  # v2
 ### 3.1 Mode développement (HTTP, port 8080)
 
 ```bash
-git clone https://github.com/chrlesur/live-memory.git
+git clone https://github.com/Cloud-Temple/live-memory.git
 cd live-memory
 cp .env.example .env
 nano .env   # Remplir S3, LLMaaS, ADMIN_BOOTSTRAP_KEY

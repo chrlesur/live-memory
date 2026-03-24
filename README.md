@@ -153,7 +153,7 @@ Concrètement, les agents peuvent :
 ### 1. Cloner le dépôt
 
 ```bash
-git clone https://github.com/chrlesur/live-memory.git
+git clone https://github.com/Cloud-Temple/live-memory.git
 cd live-memory
 ```
 
@@ -337,7 +337,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🌉 Graph Bridge — Pont vers Graph Memory
 
-Live Memory peut pousser sa Memory Bank dans une instance [Graph Memory](https://github.com/chrlesur/graph-memory) pour la mémoire long terme. Le graphe de connaissances extrait les entités, relations et embeddings des fichiers bank.
+Live Memory peut pousser sa Memory Bank dans une instance [Graph Memory](https://github.com/Cloud-Temple/graph-memory) pour la mémoire long terme. Le graphe de connaissances extrait les entités, relations et embeddings des fichiers bank.
 
 ---
 
@@ -671,7 +671,7 @@ docker compose build live-mem-service && docker compose up -d live-mem-service
 
 | Projet           | Description                                | Lien                                                                         |
 | ---------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
-| **graph-memory** | Mémoire long terme (Knowledge Graph + RAG) | [github.com/chrlesur/graph-memory](https://github.com/chrlesur/graph-memory) |
+| **graph-memory** | Mémoire long terme (Knowledge Graph + RAG) | [github.com/Cloud-Temple/graph-memory](https://github.com/Cloud-Temple/graph-memory) |
 
 ---
 
