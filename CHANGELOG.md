@@ -5,6 +5,51 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [1.0.0] — 2026-03-24
+
+### Sécurité — Audit complet et 15 remédiations
+
+**Audit de sécurité complet** réalisé sur la v0.9.0, couvrant 10 domaines (authentification, validation des entrées, S3, LLM, web, réseau, cryptographie, configuration, gestion d'erreurs, supply chain). Rapport : `DESIGN/live-mem/AUDIT_SECURITE_2026-03-24.md` (27 constats, correspondance OWASP API Security Top 10).
+
+**15 vulnérabilités corrigées** — 56/56 tests PASS.
+
+#### 🔴 Critiques (3)
+- **VULN-01 — Race condition tokens.json** — `validate_token()` ne fait plus de `_save_store()` pour `last_used_at`. Le champ est mis en cache mémoire (`_last_used_cache`), éliminant la race condition avec `create_token()`/`revoke_token()` qui sont sous lock.
+- **VULN-02 — API REST sans contrôle d'accès par espace** — `check_access(space_id)` ajouté dans les 5 endpoints `/api/*` (`_api_space_info`, `_api_live_notes`, `_api_bank_list`, `_api_bank_file`). Un token restreint ne peut plus lire les données d'un autre espace via l'interface web.
+- **VULN-07 — Validation de taille sur content/rules/description** — Limites implémentées : `MAX_NOTE_CONTENT_SIZE=100000` (live_note), `MAX_RULES_SIZE=50000` (space_create), `MAX_DESCRIPTION_SIZE=500` (space_create). Empêche le DoS par épuisement S3.
+
+#### 🟠 Élevés (6)
+- **VULN-03 — Correspondance hash tokens sécurisée** — Nouveau helper `_find_token_by_hash()` avec minimum 16 caractères de préfixe et détection d'ambiguïté (erreur si plusieurs tokens matchent). Appliqué à `revoke_token`, `delete_token`, `update_token`.
+- **VULN-08 — Validation space_id dans check_access()** — Regex `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$` vérifiée dans `check_access()` avant la vérification des permissions. Empêche les path traversal via `_system`, `_backups`, `../`.
+- **VULN-12 — Token Graph Memory masqué** — Le token Graph Memory dans `_meta.json` est masqué dans les réponses API (8 premiers caractères + `...`). Empêche l'escalade de privilèges read → write sur Graph Memory.
+- **VULN-17 — CORS supprimé** — Le header `Access-Control-Allow-Origin: *` a été supprimé de `_send_json()`. L'interface `/live` est servie par le même serveur (même origine), aucun CORS nécessaire.
+- **VULN-25 — Bootstrap key obligatoire** — Le serveur refuse de démarrer si `ADMIN_BOOTSTRAP_KEY` est dans la liste des clés faibles (`change_me_in_production`, `changeme`, `admin`, `password`, vide) ou fait moins de 32 caractères (warning).
+
+#### 🟡 Moyens (5)
+- **VULN-04 — Comparaison constant-time bootstrap key** — `hmac.compare_digest()` remplace `==` pour la comparaison du bootstrap key.
+- **VULN-09 — Validation filename contre path traversal** — Rejet des filenames contenant `..` ou commençant par `/` dans `_api_bank_file`.
+- **VULN-10 — Paramètre limit borné** — `live_read` limite le `limit` à `MAX_LIVE_READ_LIMIT=500`.
+- **VULN-13 — Logging des erreurs dans delete_many()** — Les erreurs de suppression S3 sont loggées (`logger.warning`) au lieu d'être ignorées silencieusement.
+- **VULN-27 — Erreurs masquées en production** — Nouveau helper `safe_error()` dans `auth/context.py` : message générique en prod (`MCP_SERVER_DEBUG=false`), message complet en debug. 34 blocs `except` remplacés dans 6 fichiers tools.
+
+#### 🟢 Faible (1)
+- **VULN-11 — bank_relpath dans API REST** — `_api_bank_list` utilise `bank_relpath()` au lieu de `split("/")[-1]` pour supporter les sous-dossiers.
+
+### Fichiers modifiés
+| Fichier                                        | Changements                                                                                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `src/live_mem/core/tokens.py`                  | VULN-01 (`_last_used_cache`), VULN-03 (`_find_token_by_hash`, min 16 chars)                                                  |
+| `src/live_mem/auth/context.py`                 | VULN-08 (regex space_id), VULN-27 (`safe_error()` helper)                                                                    |
+| `src/live_mem/auth/middleware.py`              | VULN-02 (check_access API), VULN-04 (hmac), VULN-09 (filename), VULN-11 (bank_relpath), VULN-12 (mask token), VULN-17 (CORS) |
+| `src/live_mem/core/live.py`                    | VULN-07 (MAX_NOTE_CONTENT_SIZE), VULN-10 (MAX_LIVE_READ_LIMIT)                                                               |
+| `src/live_mem/core/space.py`                   | VULN-07 (MAX_RULES_SIZE, MAX_DESCRIPTION_SIZE)                                                                               |
+| `src/live_mem/core/storage.py`                 | VULN-13 (logging delete_many)                                                                                                |
+| `src/live_mem/server.py`                       | VULN-25 (bootstrap key check au démarrage)                                                                                   |
+| `src/live_mem/tools/*.py` (×6)                 | VULN-27 (34 blocs `safe_error()`)                                                                                            |
+| `DESIGN/live-mem/AUDIT_SECURITE_2026-03-24.md` | Rapport d'audit complet (nouveau)                                                                                            |
+
+---
+
 ## [0.9.0] — 2026-03-19
 
 ### Changé — Support natif des sous-dossiers dans la Memory Bank
@@ -25,14 +70,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - **37 outils MCP** (était 35) — catégorie Bank passe de 5 à 7 outils.
 
 ### Fichiers modifiés
-| Fichier                            | Changements                                                                                       |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `src/live_mem/core/storage.py`     | + `bank_relpath()` — extraction chemin relatif bank depuis clé S3                                 |
-| `src/live_mem/core/consolidator.py`| `_sanitize_filename()` : garde `/`, supprime préfixes parasites. `_build_prompt()` + `_write_results()` : utilisent `bank_relpath`. Nettoyage auto doublons. |
-| `src/live_mem/tools/bank.py`       | `bank_read_all`/`bank_list` : retournent chemins relatifs. + `bank_write` et `bank_delete` (admin). `bank_read` avec fallback Unicode. 7 outils (était 5). |
-| `src/live_mem/core/space.py`       | `get_info()` et `get_summary()` : utilisent `bank_relpath`                                        |
-| `src/live_mem/core/graph_bridge.py`| `push()` : utilise `bank_relpath`                                                                 |
-| `VERSION`                          | 0.8.2 → 0.9.0                                                                                    |
+| Fichier                             | Changements                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/live_mem/core/storage.py`      | + `bank_relpath()` — extraction chemin relatif bank depuis clé S3                                                                                            |
+| `src/live_mem/core/consolidator.py` | `_sanitize_filename()` : garde `/`, supprime préfixes parasites. `_build_prompt()` + `_write_results()` : utilisent `bank_relpath`. Nettoyage auto doublons. |
+| `src/live_mem/tools/bank.py`        | `bank_read_all`/`bank_list` : retournent chemins relatifs. + `bank_write` et `bank_delete` (admin). `bank_read` avec fallback Unicode. 7 outils (était 5).   |
+| `src/live_mem/core/space.py`        | `get_info()` et `get_summary()` : utilisent `bank_relpath`                                                                                                   |
+| `src/live_mem/core/graph_bridge.py` | `push()` : utilise `bank_relpath`                                                                                                                            |
+| `VERSION`                           | 0.8.2 → 0.9.0                                                                                                                                                |
 
 ### ⚠️ À compléter (follow-up)
 - CLI Click : ajouter commandes `bank write`, `bank delete`, `bank repair`

@@ -117,7 +117,8 @@ def register(mcp: FastMCP) -> int:
                 "size": len(content.encode("utf-8")),
             }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "bank")
 
     @mcp.tool()
     async def bank_read_all(
@@ -174,7 +175,8 @@ def register(mcp: FastMCP) -> int:
                 "file_count": len(files),
             }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "bank")
 
     @mcp.tool()
     async def bank_list(
@@ -228,7 +230,8 @@ def register(mcp: FastMCP) -> int:
                 "file_count": len(files),
             }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "bank")
 
     @mcp.tool()
     async def bank_consolidate(
@@ -333,7 +336,8 @@ def register(mcp: FastMCP) -> int:
                 return await get_consolidator().consolidate(space_id, agent=agent)
 
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "bank")
 
     @mcp.tool()
     async def bank_repair(
@@ -497,7 +501,8 @@ def register(mcp: FastMCP) -> int:
                 ),
             }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "bank")
 
     @mcp.tool()
     async def bank_write(
@@ -584,7 +589,8 @@ def register(mcp: FastMCP) -> int:
             return result
 
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "bank")
 
     @mcp.tool()
     async def bank_delete(
@@ -661,6 +667,7 @@ def register(mcp: FastMCP) -> int:
             }
 
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "bank")
 
     return 7  # Nombre d'outils enregistrés

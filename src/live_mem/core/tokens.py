@@ -45,6 +45,41 @@ class TokenService:
     sont protégées par un asyncio.Lock pour éviter les conflits.
     """
 
+    def __init__(self):
+        # VULN-01 fix : cache en mémoire pour last_used_at
+        # Évite la race condition d'écriture S3 dans validate_token()
+        self._last_used_cache: dict[str, str] = {}
+
+    def _find_token_by_hash(self, store: "TokensStore", token_hash: str) -> tuple:
+        """
+        Trouve un token par préfixe de hash (VULN-03 fix).
+
+        Retourne (index, token) ou (-1, None) si introuvable.
+        Retourne (-2, None) si le préfixe est ambigu (multiple matches).
+
+        Exige un minimum de 16 caractères pour le préfixe.
+        """
+        if len(token_hash) < 16:
+            return (-3, None)  # Préfixe trop court
+
+        matches = [(i, t) for i, t in enumerate(store.tokens) if t.hash.startswith(token_hash)]
+
+        if len(matches) == 0:
+            return (-1, None)
+        if len(matches) > 1:
+            return (-2, None)
+        return matches[0]
+
+    def _token_not_found_or_ambiguous(self, idx: int, token_hash: str) -> dict | None:
+        """Retourne un message d'erreur si le token n'est pas trouvé, ou None si OK."""
+        if idx == -3:
+            return {"status": "error", "message": f"Hash trop court ({len(token_hash)} chars). Minimum 16 caractères requis."}
+        if idx == -2:
+            return {"status": "error", "message": "Préfixe de hash ambigu — plusieurs tokens correspondent. Fournissez un hash plus long."}
+        if idx == -1:
+            return {"status": "not_found", "message": "Token introuvable"}
+        return None
+
     async def create_token(
         self,
         name: str,
@@ -152,62 +187,56 @@ class TokenService:
         """
         Révoque un token (le rend inutilisable).
 
+        VULN-03 fix : utilise _find_token_by_hash pour une correspondance
+        sécurisée (min 16 chars, détection d'ambiguïté).
+
         Args:
-            token_hash: Hash SHA-256 du token (préfixe "sha256:" ou tronqué)
+            token_hash: Hash SHA-256 du token (min 16 chars de préfixe)
 
         Returns:
             {"status": "ok"} ou erreur
         """
         async with get_lock_manager().tokens:
             store = await self._load_store()
-            found = False
-            for t in store.tokens:
-                if t.hash.startswith(token_hash) or token_hash.startswith(t.hash[:20]):
-                    t.revoked = True
-                    found = True
-                    break
+            idx, token = self._find_token_by_hash(store, token_hash)
+            err = self._token_not_found_or_ambiguous(idx, token_hash)
+            if err:
+                return err
 
-            if not found:
-                return {"status": "not_found", "message": "Token introuvable"}
-
+            token.revoked = True
             await self._save_store(store)
 
-        return {"status": "ok", "message": "Token révoqué"}
+        return {"status": "ok", "message": f"Token '{token.name}' révoqué"}
 
     async def delete_token(self, token_hash: str) -> dict:
         """
         Supprime physiquement un token du registre.
 
-        Contrairement à revoke_token qui marque le token comme révoqué,
-        cette méthode le retire complètement de tokens.json.
+        VULN-03 fix : utilise _find_token_by_hash pour une correspondance
+        sécurisée (min 16 chars, détection d'ambiguïté).
 
         Args:
-            token_hash: Hash SHA-256 du token (préfixe ou tronqué)
+            token_hash: Hash SHA-256 du token (min 16 chars de préfixe)
 
         Returns:
             {"status": "deleted", "name": "..."} ou erreur
         """
         async with get_lock_manager().tokens:
             store = await self._load_store()
-            original_count = len(store.tokens)
-            deleted_name = None
+            idx, token = self._find_token_by_hash(store, token_hash)
+            err = self._token_not_found_or_ambiguous(idx, token_hash)
+            if err:
+                return err
 
-            for i, t in enumerate(store.tokens):
-                if t.hash.startswith(token_hash) or token_hash.startswith(t.hash[:20]):
-                    deleted_name = t.name
-                    store.tokens.pop(i)
-                    break
-
-            if deleted_name is None:
-                return {"status": "not_found", "message": "Token introuvable"}
-
+            deleted_name = token.name
+            store.tokens.pop(idx)
             await self._save_store(store)
 
         return {
             "status": "deleted",
             "name": deleted_name,
             "message": f"Token '{deleted_name}' supprimé physiquement",
-            "remaining": original_count - 1,
+            "remaining": len(store.tokens),
         }
 
     async def purge_tokens(self, revoked_only: bool = True) -> dict:
@@ -251,8 +280,11 @@ class TokenService:
         """
         Met à jour les permissions ou space_ids d'un token.
 
+        VULN-03 fix : utilise _find_token_by_hash pour une correspondance
+        sécurisée (min 16 chars, détection d'ambiguïté).
+
         Args:
-            token_hash: Hash du token (préfixe ou tronqué)
+            token_hash: Hash du token (min 16 chars de préfixe)
             space_ids: Nouveaux espaces autorisés (vide = pas de changement)
             permissions: Nouvelles permissions (vide = pas de changement)
 
@@ -261,7 +293,7 @@ class TokenService:
         """
         async with get_lock_manager().tokens:
             store = await self._load_store()
-            found = False
+
             # Valider les permissions avant modification
             if permissions:
                 perm_list = [p.strip() for p in permissions.split(",") if p.strip()]
@@ -275,23 +307,21 @@ class TokenService:
                         ),
                     }
 
-            for t in store.tokens:
-                if t.hash.startswith(token_hash) or token_hash.startswith(t.hash[:20]):
-                    if permissions:
-                        t.permissions = [p.strip() for p in permissions.split(",") if p.strip()]
-                    if space_ids:
-                        t.space_ids = [s.strip() for s in space_ids.split(",")]
-                    if email:
-                        t.email = email
-                    found = True
-                    break
+            idx, token = self._find_token_by_hash(store, token_hash)
+            err = self._token_not_found_or_ambiguous(idx, token_hash)
+            if err:
+                return err
 
-            if not found:
-                return {"status": "not_found", "message": "Token introuvable"}
+            if permissions:
+                token.permissions = [p.strip() for p in permissions.split(",") if p.strip()]
+            if space_ids:
+                token.space_ids = [s.strip() for s in space_ids.split(",")]
+            if email:
+                token.email = email
 
             await self._save_store(store)
 
-        return {"status": "ok", "message": "Token mis à jour"}
+        return {"status": "ok", "message": f"Token '{token.name}' mis à jour"}
 
     async def add_space_to_token(self, token_hash: str, space_id: str) -> dict:
         """
@@ -345,6 +375,11 @@ class TokenService:
 
         Appelé par le middleware d'authentification à chaque requête.
 
+        VULN-01 (audit v1.0.0) : l'écriture de last_used_at a été supprimée
+        de cette méthode pour éliminer la race condition avec les opérations
+        sous lock (create/revoke/update). last_used_at est désormais mis à
+        jour de manière différée via _update_last_used().
+
         Args:
             raw_token: Token en clair (ex: "lm_a1B2c3...")
 
@@ -371,13 +406,10 @@ class TokenService:
             if t.expires_at and t.expires_at < now:
                 return None
 
-            # Token valide — mettre à jour last_used_at (best effort)
-            t.last_used_at = now
-            # Note: pas de lock ici pour la perf, c'est du best-effort
-            try:
-                await self._save_store(store)
-            except Exception:
-                pass  # last_used_at est informatif, pas critique
+            # Token valide — mise à jour last_used_at différée (en mémoire)
+            # VULN-01 fix : on ne fait plus _save_store() ici pour éviter
+            # la race condition avec create/revoke/update qui sont sous lock.
+            self._last_used_cache[token_hash] = now
 
             return {
                 "type": "token",

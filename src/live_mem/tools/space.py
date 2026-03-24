@@ -90,7 +90,8 @@ def register(mcp: FastMCP) -> int:
 
             return result
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     @mcp.tool()
     async def space_update(
@@ -130,7 +131,8 @@ def register(mcp: FastMCP) -> int:
                 owner=owner if owner else None,
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     @mcp.tool()
     async def space_list() -> dict:
@@ -160,7 +162,8 @@ def register(mcp: FastMCP) -> int:
                 allowed_space_ids=allowed_ids
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     @mcp.tool()
     async def space_info(
@@ -188,7 +191,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_space_service().get_info(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     @mcp.tool()
     async def space_rules(
@@ -217,7 +221,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_space_service().get_rules(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     @mcp.tool()
     async def space_summary(
@@ -245,7 +250,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_space_service().get_summary(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     @mcp.tool()
     async def space_export(
@@ -273,7 +279,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_space_service().export_space(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     @mcp.tool()
     async def space_delete(
@@ -319,6 +326,7 @@ def register(mcp: FastMCP) -> int:
 
             return await get_space_service().delete(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
 
     return 8  # Nombre d'outils enregistrés

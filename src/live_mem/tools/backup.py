@@ -64,7 +64,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_backup_service().create(space_id, description)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "backup")
 
     @mcp.tool()
     async def backup_list(
@@ -113,7 +114,8 @@ def register(mcp: FastMCP) -> int:
 
             return result
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "backup")
 
     @mcp.tool()
     async def backup_restore(
@@ -149,7 +151,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_backup_service().restore(backup_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "backup")
 
     @mcp.tool()
     async def backup_download(
@@ -180,7 +183,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_backup_service().download(backup_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "backup")
 
     @mcp.tool()
     async def backup_delete(
@@ -213,6 +217,7 @@ def register(mcp: FastMCP) -> int:
 
             return await get_backup_service().delete(backup_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "backup")
 
     return 5  # Nombre d'outils enregistrés

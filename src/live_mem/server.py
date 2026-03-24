@@ -133,6 +133,21 @@ def main():
 
     version = _read_version()
 
+    # VULN-25 fix : refuser de démarrer avec le bootstrap key par défaut
+    _weak_keys = {"change_me_in_production", "changeme", "admin", "password", ""}
+    if settings.admin_bootstrap_key in _weak_keys:
+        logger.critical(
+            "⛔ ADMIN_BOOTSTRAP_KEY non configurée ou trop faible ('%s') ! "
+            "Définissez une clé de ≥32 caractères aléatoires dans .env.",
+            settings.admin_bootstrap_key[:10] + "..." if len(settings.admin_bootstrap_key) > 10 else settings.admin_bootstrap_key,
+        )
+        sys.exit(1)
+    if len(settings.admin_bootstrap_key) < 32:
+        logger.warning(
+            "⚠️ ADMIN_BOOTSTRAP_KEY trop courte (%d chars). Minimum recommandé : 32 caractères.",
+            len(settings.admin_bootstrap_key),
+        )
+
     # Lister les outils disponibles et les grouper par catégorie
     tools = mcp._tool_manager.list_tools()
     tool_names = [t.name for t in tools]

@@ -30,6 +30,10 @@ from .storage import get_storage
 # Constantes
 # ─────────────────────────────────────────────────────────────
 
+# VULN-07 fix : limites de taille pour les contenus
+MAX_NOTE_CONTENT_SIZE = 100_000    # 100K caractères max par note
+MAX_LIVE_READ_LIMIT = 500          # VULN-10 fix : limite max pour live_read
+
 # Catégories de notes autorisées (cf. MCP_TOOLS_SPEC.md)
 VALID_CATEGORIES = [
     "observation",   # Constat factuel ("Le build passe")
@@ -76,6 +80,16 @@ class LiveService:
         Returns:
             {"status": "created", "filename": "...", ...}
         """
+        # VULN-07 fix : valider la taille du contenu
+        if len(content) > MAX_NOTE_CONTENT_SIZE:
+            return {
+                "status": "error",
+                "message": (
+                    f"Contenu trop long ({len(content)} chars, "
+                    f"max {MAX_NOTE_CONTENT_SIZE})"
+                ),
+            }
+
         # Valider la catégorie
         if category not in VALID_CATEGORIES:
             return {
@@ -163,6 +177,9 @@ class LiveService:
         Returns:
             {"status": "ok", "notes": [...], "total": N, "has_more": bool}
         """
+        # VULN-10 fix : borner le limit
+        limit = min(limit, MAX_LIVE_READ_LIMIT)
+
         storage = get_storage()
         if not await storage.exists(f"{space_id}/_meta.json"):
             return {

@@ -73,7 +73,8 @@ def register(mcp: FastMCP) -> int:
                 email=email,
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "admin")
 
     @mcp.tool()
     async def admin_list_tokens() -> dict:
@@ -96,7 +97,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_token_service().list_tokens()
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "admin")
 
     @mcp.tool()
     async def admin_revoke_token(
@@ -121,7 +123,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_token_service().revoke_token(token_hash)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "admin")
 
     @mcp.tool()
     async def admin_delete_token(
@@ -153,7 +156,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_token_service().delete_token(token_hash)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "admin")
 
     @mcp.tool()
     async def admin_purge_tokens(
@@ -183,7 +187,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_token_service().purge_tokens(revoked_only=revoked_only)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "admin")
 
     @mcp.tool()
     async def admin_update_token(
@@ -218,7 +223,8 @@ def register(mcp: FastMCP) -> int:
                 email=email,
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "admin")
 
     @mcp.tool()
     async def admin_gc_notes(
@@ -290,6 +296,7 @@ def register(mcp: FastMCP) -> int:
                 return result
 
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "admin")
 
     return 7  # Nombre d'outils enregistrés

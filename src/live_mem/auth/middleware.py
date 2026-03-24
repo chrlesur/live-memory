@@ -12,13 +12,14 @@ L'AuthMiddleware :
     4. Injecte les infos du token dans les contextvars
 """
 
+import hmac
 import json
 import sys
 import time
 import hashlib
 import logging
 from typing import Optional
-from .context import current_token_info
+from .context import current_token_info, check_access
 from ..config import get_settings
 
 logger = logging.getLogger("live_mem.auth")
@@ -114,7 +115,8 @@ class AuthMiddleware:
         settings = get_settings()
 
         # Mode 1 : Bootstrap key → admin total
-        if token == settings.admin_bootstrap_key:
+        # VULN-04 fix : comparaison constant-time pour éviter les timing attacks
+        if hmac.compare_digest(token, settings.admin_bootstrap_key):
             return {
                 "type": "bootstrap",
                 "client_name": "admin",
@@ -305,6 +307,12 @@ class StaticFilesMiddleware:
     async def _api_space_info(self, send, space_id: str):
         """Info complète d'un espace (meta + rules + stats)."""
         try:
+            # VULN-02 fix : vérifier l'accès à l'espace
+            access_err = check_access(space_id)
+            if access_err:
+                await self._send_json(send, access_err, 403)
+                return
+
             from ..core.space import get_space_service
             from ..core.storage import get_storage
 
@@ -324,7 +332,11 @@ class StaticFilesMiddleware:
             if meta:
                 info["total_notes_processed"] = meta.get("total_notes_processed", 0)
                 if meta.get("graph_memory"):
-                    info["graph_memory"] = meta["graph_memory"]
+                    # VULN-12 fix : masquer le token Graph Memory dans la réponse
+                    gm = dict(meta["graph_memory"])
+                    if gm.get("token"):
+                        gm["token"] = gm["token"][:8] + "..." if len(gm["token"]) > 8 else "***"
+                    info["graph_memory"] = gm
 
             await self._send_json(send, info)
         except Exception as e:
@@ -333,6 +345,12 @@ class StaticFilesMiddleware:
     async def _api_live_notes(self, send, space_id: str, query_string: str):
         """Notes live avec filtres optionnels."""
         try:
+            # VULN-02 fix : vérifier l'accès à l'espace
+            access_err = check_access(space_id)
+            if access_err:
+                await self._send_json(send, access_err, 403)
+                return
+
             from ..core.live import get_live_service
             from urllib.parse import parse_qs
 
@@ -351,6 +369,12 @@ class StaticFilesMiddleware:
     async def _api_bank_list(self, send, space_id: str):
         """Liste des fichiers bank."""
         try:
+            # VULN-02 fix : vérifier l'accès à l'espace
+            access_err = check_access(space_id)
+            if access_err:
+                await self._send_json(send, access_err, 403)
+                return
+
             from ..core.storage import get_storage
             storage = get_storage()
 
@@ -363,13 +387,15 @@ class StaticFilesMiddleware:
                 return
 
             # Lister les fichiers bank
+            # VULN-11 fix : utiliser bank_relpath au lieu de split("/")[-1]
+            from ..core.storage import bank_relpath
             objects = await storage.list_objects(f"{space_id}/bank/")
             files = []
             for obj in objects:
                 key = obj["Key"]
                 if key.endswith(".keep"):
                     continue
-                filename = key.split("/")[-1]
+                filename = bank_relpath(key, space_id)
                 files.append({
                     "filename": filename,
                     "size": obj.get("Size", 0),
@@ -388,10 +414,21 @@ class StaticFilesMiddleware:
     async def _api_bank_file(self, send, space_id: str, filename: str):
         """Contenu d'un fichier bank."""
         try:
+            # VULN-02 fix : vérifier l'accès à l'espace
+            access_err = check_access(space_id)
+            if access_err:
+                await self._send_json(send, access_err, 403)
+                return
+
             from ..core.storage import get_storage
             from urllib.parse import unquote
             storage = get_storage()
             filename = unquote(filename)
+
+            # VULN-09 fix : valider le filename contre path traversal
+            if ".." in filename or filename.startswith("/"):
+                await self._send_json(send, {"status": "error", "message": "Nom de fichier invalide"}, 400)
+                return
 
             key = f"{space_id}/bank/{filename}"
             content = await storage.get(key)
@@ -424,7 +461,9 @@ class StaticFilesMiddleware:
             "headers": [
                 (b"content-type", b"application/json; charset=utf-8"),
                 (b"content-length", str(len(body)).encode()),
-                (b"access-control-allow-origin", b"*"),
+                # VULN-17 fix : CORS supprimé — l'interface web est servie
+                # par le même serveur (même origine), pas besoin de CORS.
+                # Les agents MCP utilisent /mcp, pas /api/*.
             ],
         })
         await send({"type": "http.response.body", "body": body})

@@ -19,8 +19,13 @@ Voir AUTH_AND_COLLABORATION.md pour la matrice des permissions.
     - admin (👑) : suppression d'espaces, backup restore, gestion tokens
 """
 
+import re
 from contextvars import ContextVar
 from typing import Optional
+
+# VULN-08 fix : regex de validation du space_id, appliquée dans check_access()
+# Empêche l'utilisation de space_ids malveillants (_system, _backups, ../)
+_SPACE_ID_REGEX = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 
 # ─────────────────────────────────────────────────────────────
 # Context variable injectée par le middleware AuthMiddleware
@@ -53,6 +58,14 @@ def check_access(resource_id: str) -> Optional[dict]:
     # Pas de token → accès refusé
     if token_info is None:
         return {"status": "error", "message": "Authentification requise"}
+
+    # VULN-08 fix : valider le format du space_id AVANT de vérifier les permissions
+    # Empêche les tentatives de path traversal via _system, _backups, etc.
+    if not _SPACE_ID_REGEX.match(resource_id):
+        return {
+            "status": "error",
+            "message": f"Identifiant d'espace invalide : '{resource_id}'",
+        }
 
     # Admin → accès total (pas de restriction par espace)
     if "admin" in token_info.get("permissions", []):
@@ -118,6 +131,32 @@ def check_admin_permission() -> Optional[dict]:
         "status": "error",
         "message": "Permission 'admin' requise pour cette opération",
     }
+
+
+def safe_error(exception: Exception, context: str = "") -> dict:
+    """
+    VULN-27 fix : retourne un message d'erreur sécurisé.
+
+    En mode debug (MCP_SERVER_DEBUG=true), retourne le message complet.
+    En mode production, retourne un message générique et log les détails.
+
+    Args:
+        exception: L'exception capturée
+        context: Contexte optionnel (nom de l'outil, ex: "live_note")
+
+    Returns:
+        {"status": "error", "message": "..."}
+    """
+    import logging
+    from ..config import get_settings
+
+    logger = logging.getLogger("live_mem.tools")
+    logger.exception("Erreur dans %s: %s", context or "outil MCP", exception)
+
+    if get_settings().mcp_server_debug:
+        return {"status": "error", "message": str(exception)}
+
+    return {"status": "error", "message": "Erreur interne du serveur"}
 
 
 def get_current_agent_name() -> str:

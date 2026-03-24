@@ -32,6 +32,10 @@ from .models import SpaceMeta
 # Regex de validation du space_id (alphanumérique + tirets/underscores)
 SPACE_ID_REGEX = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 
+# VULN-07 fix : limites de taille pour les contenus
+MAX_RULES_SIZE = 50_000            # 50K caractères max pour les rules
+MAX_DESCRIPTION_SIZE = 500         # 500 caractères max pour la description
+
 
 class SpaceService:
     """
@@ -74,6 +78,18 @@ class SpaceService:
                     f"space_id invalide : '{space_id}'. "
                     "Attendu : alphanumérique + tirets/underscores, 1-64 chars."
                 ),
+            }
+
+        # VULN-07 fix : valider les tailles des champs
+        if len(rules) > MAX_RULES_SIZE:
+            return {
+                "status": "error",
+                "message": f"Rules trop longues ({len(rules)} chars, max {MAX_RULES_SIZE})",
+            }
+        if description and len(description) > MAX_DESCRIPTION_SIZE:
+            return {
+                "status": "error",
+                "message": f"Description trop longue ({len(description)} chars, max {MAX_DESCRIPTION_SIZE})",
             }
 
         storage = get_storage()

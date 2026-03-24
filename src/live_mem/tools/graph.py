@@ -86,7 +86,8 @@ def register(mcp: FastMCP) -> int:
                 ontology=ontology,
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "graph")
 
     @mcp.tool()
     async def graph_push(
@@ -126,7 +127,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_graph_bridge().push(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "graph")
 
     @mcp.tool()
     async def graph_status(
@@ -156,7 +158,8 @@ def register(mcp: FastMCP) -> int:
 
             return await get_graph_bridge().status(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "graph")
 
     @mcp.tool()
     async def graph_disconnect(
@@ -192,6 +195,7 @@ def register(mcp: FastMCP) -> int:
 
             return await get_graph_bridge().disconnect(space_id)
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "graph")
 
     return 4  # Nombre d'outils enregistrés

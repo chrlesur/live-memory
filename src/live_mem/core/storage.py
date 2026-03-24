@@ -216,8 +216,9 @@ class StorageService:
             try:
                 await self.delete(key)
                 deleted += 1
-            except Exception:
-                pass  # Best effort — on continue même si un delete échoue
+            except Exception as e:
+                # VULN-13 fix : logger les erreurs au lieu de les ignorer
+                logger.warning("delete_many: échec suppression '%s': %s", key, e)
 
         return deleted
 

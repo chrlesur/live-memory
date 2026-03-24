@@ -87,7 +87,8 @@ def register(mcp: FastMCP) -> int:
                 tags=tags,
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "live")
 
     @mcp.tool()
     async def live_read(
@@ -129,7 +130,8 @@ def register(mcp: FastMCP) -> int:
                 since=since,
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "live")
 
     @mcp.tool()
     async def live_search(
@@ -165,6 +167,7 @@ def register(mcp: FastMCP) -> int:
                 limit=limit,
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            from ..auth.context import safe_error
+            return safe_error(e, "live")
 
     return 3  # Nombre d'outils enregistrés
