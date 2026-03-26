@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -626,7 +626,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 1.0.0
+├── VERSION                    # 1.1.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -689,4 +689,4 @@ Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v1.0.0 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v1.1.0 — Mémoire de travail partagée pour agents IA collaboratifs*

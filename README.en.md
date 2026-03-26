@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -40,20 +40,20 @@ live-memory   = WORKING memory (live notes → LLM → Structured Memory Bank)
 
 ### Two Complementary Modes
 
-| Mode         | Description                                                       | Analogy                   |
-| ------------ | ----------------------------------------------------------------- | -------------------------- |
-| **🔴 Live** | Real-time notes (observations, decisions, todos...) append-only   | Shared whiteboard         |
-| **📘 Bank** | LLM consolidation into structured Markdown files based on rules   | Structured project log    |
+| Mode         | Description                                                     | Analogy                |
+| ------------ | --------------------------------------------------------------- | ---------------------- |
+| **🔴 Live** | Real-time notes (observations, decisions, todos...) append-only | Shared whiteboard      |
+| **📘 Bank** | LLM consolidation into structured Markdown files based on rules | Structured project log |
 
 ### Why Live Memory?
 
-| Problem                                     | Live Memory Solution                                            |
-| ------------------------------------------- | --------------------------------------------------------------- |
-| Agents lose context between sessions        | `bank_read_all` → complete context in 1 call                    |
-| Multi-agent collaboration is impossible     | Append-only notes, no conflicts, cross-visibility               |
-| Manual consolidation is tedious             | LLM transforms raw notes into structured documentation          |
-| Memory scattered in local files             | Central S3 point, accessible from everywhere                    |
-| No link with long-term memory               | 🌉 Graph Bridge pushes the bank into a knowledge graph          |
+| Problem                                 | Live Memory Solution                                    |
+| --------------------------------------- | ------------------------------------------------------- |
+| Agents lose context between sessions    | `bank_read_all` → complete context in 1 call            |
+| Multi-agent collaboration is impossible | Append-only notes, no conflicts, cross-visibility       |
+| Manual consolidation is tedious         | LLM transforms raw notes into structured documentation  |
+| Memory scattered in local files         | Central S3 point, accessible from everywhere            |
+| No link with long-term memory           | 🌉 Graph Bridge pushes the bank into a knowledge graph |
 
 ### 🧠 Multi-agent Collaboration and Two-Level Memory Architecture
 
@@ -65,14 +65,14 @@ Live Memory + Graph Memory directly implements this architecture:
 ┌─────────────────────────────────────────────────────────────┐
 │                  Shared Environment E                       │
 │                                                             │
-│  ┌──────────────────┐   LLM    ┌─────────────────────┐      │
-│  │  🔴 Live         │ ──────► │  📘 Bank             │      │
-│  │  Real-time notes │ consolid│  Structured working │      │
-│  │  (append-only)   │  -ates  │  memory             │      │
+│  ┌──────────────────┐   LLM   ┌──────────────────────┐      │
+│  │   Live           │ ──────► │   Bank               │      │
+│  │  Real-time notes │ consolid│  Structured working  │      │
+│  │  (append-only)   │  -ates  │  memory              │      │
 │  └──────────────────┘         └──────────┬───────────┘      │
 │                                          │                  │
 │                                     graph_push              │
-│                                     (MCP Streamable HTTP)               │
+│                                     (MCP Streamable HTTP)   │
 │                                          │                  │
 │                               ┌──────────▼───────────┐      │
 │                               │  🌐 Graph Memory     │      │
@@ -83,10 +83,10 @@ Live Memory + Graph Memory directly implements this architecture:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| Level | Service | Duration | Content | Usage |
-|-------|---------|-------|---------|-------|
-| **Working Memory** | Live Memory | Session / project | Raw notes + consolidated Markdown bank | Operational context, daily coordination |
-| **Long-term Memory** | Graph Memory | Permanent | Entities + relations + vector embeddings | Searchable knowledge base in natural language |
+| Level                | Service      | Duration          | Content                                  | Usage                                         |
+| -------------------- | ------------ | ----------------- | ---------------------------------------- | --------------------------------------------- |
+| **Working Memory**   | Live Memory  | Session / project | Raw notes + consolidated Markdown bank   | Operational context, daily coordination       |
+| **Long-term Memory** | Graph Memory | Permanent         | Entities + relations + vector embeddings | Searchable knowledge base in natural language |
 
 **The Graph Bridge** (`graph_push`) is the collaboration channel between these two levels. Following the **late-stage collaboration** pattern described in literature (sharing consolidated outputs as inputs to another system), it transforms working documentation (Markdown) into structured knowledge (entities/relations graph).
 
@@ -208,10 +208,10 @@ python scripts/test_recette.py
 
 ### Exposed Ports
 
-| Service    | Port   | Description                                |
-| ---------- | ------ | ------------------------------------------ |
+| Service    | Port   | Description                                 |
+| ---------- | ------ | ------------------------------------------- |
 | **WAF**    | `8080` | Only exposed port — Caddy WAF → Live Memory |
-| MCP Server | `8002` | Internal Docker network only               |
+| MCP Server | `8002` | Internal Docker network only                |
 
 ---
 
@@ -230,19 +230,19 @@ Edit `.env`. All variables are documented in `.env.example`.
 | `S3_REGION_NAME`       | S3 region                | `fr1`                                        |
 | `LLMAAS_API_URL`       | LLM API URL (with `/v1`) | `https://api.ai.cloud-temple.com/v1`         |
 | `LLMAAS_API_KEY`       | LLM API key              | `sk-...`                                     |
-| `ADMIN_BOOTSTRAP_KEY`  | Admin bootstrap key      | `my-secret-key-change-me`                   |
+| `ADMIN_BOOTSTRAP_KEY`  | Admin bootstrap key      | `my-secret-key-change-me`                    |
 
 ### Optional Variables
 
-| Variable                  | Default           | Description                      |
-| ------------------------- | ----------------- | -------------------------------- |
-| `MCP_SERVER_PORT`         | `8002`            | MCP server listening port        |
-| `MCP_SERVER_DEBUG`        | `false`           | Detailed logs                    |
-| `LLMAAS_MODEL`            | `qwen3-2507:235b` | LLM model for consolidation      |
-| `LLMAAS_MAX_TOKENS`       | `100000`          | Max tokens per LLM call          |
-| `LLMAAS_TEMPERATURE`      | `0.3`             | LLM temperature                  |
-| `CONSOLIDATION_TIMEOUT`   | `600`             | Consolidation timeout (seconds)  |
-| `CONSOLIDATION_MAX_NOTES` | `500`             | Max notes per consolidation      |
+| Variable                  | Default           | Description                     |
+| ------------------------- | ----------------- | ------------------------------- |
+| `MCP_SERVER_PORT`         | `8002`            | MCP server listening port       |
+| `MCP_SERVER_DEBUG`        | `false`           | Detailed logs                   |
+| `LLMAAS_MODEL`            | `qwen3-2507:235b` | LLM model for consolidation     |
+| `LLMAAS_MAX_TOKENS`       | `100000`          | Max tokens per LLM call         |
+| `LLMAAS_TEMPERATURE`      | `0.3`             | LLM temperature                 |
+| `CONSOLIDATION_TIMEOUT`   | `600`             | Consolidation timeout (seconds) |
+| `CONSOLIDATION_MAX_NOTES` | `500`             | Max notes per consolidation     |
 
 ---
 
@@ -262,75 +262,75 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ### System (3 tools)
 
-| Tool            | Parameters | Description                                               |
-| --------------- | ---------- | --------------------------------------------------------- |
-| `system_health` | —          | Health status (S3, LLMaaS, number of spaces)              |
-| `system_whoami` | —          | 👤 Current token identity (name, permissions, spaces)     |
-| `system_about`  | —          | Service identity (version, tools, capabilities)           |
+| Tool            | Parameters | Description                                            |
+| --------------- | ---------- | ------------------------------------------------------ |
+| `system_health` | —          | Health status (S3, LLMaaS, number of spaces)           |
+| `system_whoami` | —          | 👤 Current token identity (name, permissions, spaces) |
+| `system_about`  | —          | Service identity (version, tools, capabilities)        |
 
 ### Space (8 tools)
 
-| Tool            | Parameters                                   | Description                                                |
-| --------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| `space_create`  | `space_id`, `description`, `rules`, `owner?` | Creates a space with its rules (bank structure)            |
-| `space_update`  | `space_id`, `description?`, `owner?`         | Updates description and/or owner (rules remain immutable)  |
-| `space_list`    | —                                            | Lists spaces accessible by current token                   |
-| `space_info`    | `space_id`                                   | Detailed info (notes, bank, consolidation)                 |
-| `space_rules`   | `space_id`                                   | Reads immutable space rules                                |
-| `space_summary` | `space_id`                                   | Complete summary: rules + bank + stats (agent startup)     |
-| `space_export`  | `space_id`                                   | tar.gz export in base64                                    |
-| `space_delete`  | `space_id`, `confirm`                        | Deletes the space (⚠️ irreversible, admin required)        |
+| Tool            | Parameters                                   | Description                                               |
+| --------------- | -------------------------------------------- | --------------------------------------------------------- |
+| `space_create`  | `space_id`, `description`, `rules`, `owner?` | Creates a space with its rules (bank structure)           |
+| `space_update`  | `space_id`, `description?`, `owner?`         | Updates description and/or owner (rules remain immutable) |
+| `space_list`    | —                                            | Lists spaces accessible by current token                  |
+| `space_info`    | `space_id`                                   | Detailed info (notes, bank, consolidation)                |
+| `space_rules`   | `space_id`                                   | Reads immutable space rules                               |
+| `space_summary` | `space_id`                                   | Complete summary: rules + bank + stats (agent startup)    |
+| `space_export`  | `space_id`                                   | tar.gz export in base64                                   |
+| `space_delete`  | `space_id`, `confirm`                        | Deletes the space (⚠️ irreversible, admin required)     |
 
 ### Live (3 tools)
 
-| Tool          | Parameters                                           | Description                                                                                            |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `live_note`   | `space_id`, `category`, `content`, `tags?`            | Writes a timestamped note (agent = token name). Categories: observation, decision, todo, insight, question, progress, issue |
-| `live_read`   | `space_id`, `limit?`, `category?`, `agent?`          | Reads live notes (optional filters)                                                                    |
-| `live_search` | `space_id`, `query`, `limit?`                        | Full-text search in notes                                                                              |
+| Tool          | Parameters                                  | Description                                                                                                                 |
+| ------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `live_note`   | `space_id`, `category`, `content`, `tags?`  | Writes a timestamped note (agent = token name). Categories: observation, decision, todo, insight, question, progress, issue |
+| `live_read`   | `space_id`, `limit?`, `category?`, `agent?` | Reads live notes (optional filters)                                                                                         |
+| `live_search` | `space_id`, `query`, `limit?`               | Full-text search in notes                                                                                                   |
 
 ### Bank (7 tools)
 
-| Tool               | Parameters                        | Description                                                                                                |
-| ------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `bank_read`        | `space_id`, `filename`            | Reads a bank file (supports subfolders: `personaProfiles/buyer.md`)                                        |
-| `bank_read_all`    | `space_id`                        | Reads entire bank in one request (🚀 agent startup)                                                        |
-| `bank_list`        | `space_id`                        | Lists bank files with relative paths (without content)                                                     |
-| `bank_consolidate` | `space_id`, `agent?`              | 🧠 Consolidates notes via LLM. Empty `agent` = all notes (admin). `agent=name` = notes from this agent     |
-| `bank_repair`      | `space_id`, `dry_run?`            | 🔧 Repairs corrupted filenames (Unicode, parasitic prefixes). `dry_run=True` by default (admin)             |
-| `bank_write`       | `space_id`, `filename`, `content` | ✏️ Writes/replaces a bank file directly — bypasses LLM consolidation (admin)                               |
-| `bank_delete`      | `space_id`, `filename`            | 🗑️ Deletes a bank file + its Unicode duplicates (admin, irreversible)                                      |
+| Tool               | Parameters                        | Description                                                                                             |
+| ------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `bank_read`        | `space_id`, `filename`            | Reads a bank file (supports subfolders: `personaProfiles/buyer.md`)                                     |
+| `bank_read_all`    | `space_id`                        | Reads entire bank in one request (🚀 agent startup)                                                    |
+| `bank_list`        | `space_id`                        | Lists bank files with relative paths (without content)                                                  |
+| `bank_consolidate` | `space_id`, `agent?`              | 🧠 Consolidates notes via LLM. Empty `agent` = all notes (admin). `agent=name` = notes from this agent |
+| `bank_repair`      | `space_id`, `dry_run?`            | 🔧 Repairs corrupted filenames (Unicode, parasitic prefixes). `dry_run=True` by default (admin)        |
+| `bank_write`       | `space_id`, `filename`, `content` | ✏️ Writes/replaces a bank file directly — bypasses LLM consolidation (admin)                          |
+| `bank_delete`      | `space_id`, `filename`            | 🗑️ Deletes a bank file + its Unicode duplicates (admin, irreversible)                                |
 
 ### Graph (4 tools) — 🌉 Link to Graph Memory
 
-| Tool               | Parameters                                           | Description                                                                                                  |
-| ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `graph_connect`    | `space_id`, `url`, `token`, `memory_id`, `ontology?` | Connects a space to Graph Memory. Tests connection, creates memory if needed. Default ontology: `general`    |
-| `graph_push`       | `space_id`                                           | Synchronizes bank → graph. Smart delete + re-ingest, orphan cleanup. ~30s/file                               |
-| `graph_status`     | `space_id`                                           | Connection status + graph stats (documents, entities, relations, top entities, documents list)               |
-| `graph_disconnect` | `space_id`                                           | Disconnects (data remains in graph)                                                                          |
+| Tool               | Parameters                                           | Description                                                                                               |
+| ------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `graph_connect`    | `space_id`, `url`, `token`, `memory_id`, `ontology?` | Connects a space to Graph Memory. Tests connection, creates memory if needed. Default ontology: `general` |
+| `graph_push`       | `space_id`                                           | Synchronizes bank → graph. Smart delete + re-ingest, orphan cleanup. ~30s/file                            |
+| `graph_status`     | `space_id`                                           | Connection status + graph stats (documents, entities, relations, top entities, documents list)            |
+| `graph_disconnect` | `space_id`                                           | Disconnects (data remains in graph)                                                                       |
 
 ### Backup (5 tools)
 
-| Tool              | Parameters                 | Description                                       |
-| ----------------- | -------------------------- | ------------------------------------------------- |
-| `backup_create`   | `space_id`, `description?` | Creates a full snapshot on S3                     |
-| `backup_list`     | `space_id?`                | Lists available backups                           |
-| `backup_restore`  | `backup_id`                | Restores a backup (space must not exist)          |
-| `backup_download` | `backup_id`                | Download as tar.gz base64                         |
-| `backup_delete`   | `backup_id`                | Deletes a backup                                  |
+| Tool              | Parameters                 | Description                              |
+| ----------------- | -------------------------- | ---------------------------------------- |
+| `backup_create`   | `space_id`, `description?` | Creates a full snapshot on S3            |
+| `backup_list`     | `space_id?`                | Lists available backups                  |
+| `backup_restore`  | `backup_id`                | Restores a backup (space must not exist) |
+| `backup_download` | `backup_id`                | Download as tar.gz base64                |
+| `backup_delete`   | `backup_id`                | Deletes a backup                         |
 
 ### Admin (7 tools)
 
-| Tool                  | Parameters                                               | Description                                                                  |
-| --------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `admin_create_token`  | `name`, `permissions`, `space_ids?`, `expires_in_days?`, `email?` | Creates a token (⚠️ displayed only once). Permissions: read, write, admin. Optional email for traceability |
-| `admin_list_tokens`   | —                                                        | Lists active tokens                                                          |
-| `admin_revoke_token`  | `token_hash`                                             | Revokes a token (makes it unusable)                                          |
-| `admin_delete_token`  | `token_hash`                                             | Physically deletes a token from the registry (⚠️ irreversible)               |
-| `admin_purge_tokens`  | `revoked_only?`                                          | Bulk purge: revoked only (default) or all tokens                             |
-| `admin_update_token`  | `token_hash`, `space_ids`, `action`                      | Modifies token spaces (add/remove/set)                                       |
-| `admin_gc_notes`      | `space_id?`, `max_age_days?`, `confirm?`, `delete_only?` | Garbage Collector: cleans orphaned notes                                     |
+| Tool                 | Parameters                                                        | Description                                                                                                  |
+| -------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `admin_create_token` | `name`, `permissions`, `space_ids?`, `expires_in_days?`, `email?` | Creates a token (⚠️ displayed only once). Permissions: read, write, admin. Optional email for traceability |
+| `admin_list_tokens`  | —                                                                 | Lists active tokens                                                                                          |
+| `admin_revoke_token` | `token_hash`                                                      | Revokes a token (makes it unusable)                                                                          |
+| `admin_delete_token` | `token_hash`                                                      | Physically deletes a token from the registry (⚠️ irreversible)                                             |
+| `admin_purge_tokens` | `revoked_only?`                                                   | Bulk purge: revoked only (default) or all tokens                                                             |
+| `admin_update_token` | `token_hash`, `space_ids`, `action`                               | Modifies token spaces (add/remove/set)                                                                       |
+| `admin_gc_notes`     | `space_id?`, `max_age_days?`, `confirm?`, `delete_only?`          | Garbage Collector: cleans orphaned notes                                                                     |
 
 ---
 
@@ -365,13 +365,13 @@ Each push is a **complete refresh** of the graph for that file. Existing files a
 
 ### Available Ontologies
 
-| Ontology           | Usage                                        |
-| ------------------ | -------------------------------------------- |
-| `general` (default)| Versatile: FAQ, specs, certifications, CSR   |
-| `legal`            | Legal documents, contracts                   |
-| `cloud`            | Cloud infrastructure, product sheets         |
-| `managed-services` | Managed services, outsourcing                |
-| `presales`         | Pre-sales, RFP/RFI, proposals                |
+| Ontology            | Usage                                      |
+| ------------------- | ------------------------------------------ |
+| `general` (default) | Versatile: FAQ, specs, certifications, CSR |
+| `legal`             | Legal documents, contracts                 |
+| `cloud`             | Cloud infrastructure, product sheets       |
+| `managed-services`  | Managed services, outsourcing              |
+| `presales`          | Pre-sales, RFP/RFI, proposals              |
 
 ---
 
@@ -387,11 +387,11 @@ http://localhost:8080/live
 
 ### Features
 
-| Zone | Content |
-|------|---------|
-| **📊 Dashboard** (left) | Space info, consolidation (date + counters), live/bank stats, colored agents, categories with %, Markdown rules, Graph Memory |
-| **🔴 Live Timeline** (top-right) | Live notes grouped by date (Today/Yesterday/date), cards with agent + category + Markdown |
-| **📘 Bank Viewer** (bottom-right) | Consolidated file tabs, Markdown rendering with marked.js |
+| Zone                               | Content                                                                                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **📊 Dashboard** (left)           | Space info, consolidation (date + counters), live/bank stats, colored agents, categories with %, Markdown rules, Graph Memory |
+| **🔴 Live Timeline** (top-right)  | Live notes grouped by date (Today/Yesterday/date), cards with agent + category + Markdown                                     |
+| **📘 Bank Viewer** (bottom-right) | Consolidated file tabs, Markdown rendering with marked.js                                                                     |
 
 ### Layout
 
@@ -413,13 +413,13 @@ http://localhost:8080/live
 
 ### REST API (5 endpoints)
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/spaces` | List of spaces |
-| `GET /api/space/{id}` | Complete info (meta + rules + stats + graph-memory) |
-| `GET /api/live/{id}` | Live notes (filters: `?agent=`, `?category=`, `?limit=`) |
-| `GET /api/bank/{id}` | Bank file list |
-| `GET /api/bank/{id}/{filename}` | Bank file content |
+| Endpoint                        | Description                                              |
+| ------------------------------- | -------------------------------------------------------- |
+| `GET /api/spaces`               | List of spaces                                           |
+| `GET /api/space/{id}`           | Complete info (meta + rules + stats + graph-memory)      |
+| `GET /api/live/{id}`            | Live notes (filters: `?agent=`, `?category=`, `?limit=`) |
+| `GET /api/bank/{id}`            | Bank file list                                           |
+| `GET /api/bank/{id}/{filename}` | Bank file content                                        |
 
 `/api/*` endpoints require a Bearer Token. `/live` page and `/static/*` files are public.
 
@@ -565,12 +565,12 @@ python scripts/test_recette.py --list
 python scripts/test_recette.py --suite isolation -v --step --no-cleanup
 ```
 
-| Suite | Tests | Description |
-|---|---|---|
-| `recette` | 7 | Full pipeline: token → notes → LLM consolidation → bank |
-| `isolation` | 18 | Multi-tenant isolation v0.7.1: cross-space access, backup filtering, auto-add token |
-| `qualite` | 19 | 35 MCP tools testing: system, admin, space, live, bank, backup, GC |
-| `graph` | ~8 | Graph Memory bridge: connect, push, status, disconnect (optional) |
+| Suite       | Tests | Description                                                                         |
+| ----------- | ----- | ----------------------------------------------------------------------------------- |
+| `recette`   | 7     | Full pipeline: token → notes → LLM consolidation → bank                             |
+| `isolation` | 18    | Multi-tenant isolation v0.7.1: cross-space access, backup filtering, auto-add token |
+| `qualite`   | 19    | 35 MCP tools testing: system, admin, space, live, bank, backup, GC                  |
+| `graph`     | ~8    | Graph Memory bridge: connect, push, status, disconnect (optional)                   |
 
 ---
 
@@ -634,7 +634,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 1.0.0
+├── VERSION                    # 1.1.0
 ├── CHANGELOG.md
 └── FAQ.md
 ```
@@ -665,9 +665,9 @@ docker compose logs waf --tail 20
 
 ## 🔗 Related Projects
 
-| Project           | Description                                | Link                                                                         |
-| ---------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
-| **graph-memory** | Long-term memory (Knowledge Graph + RAG)   | [github.com/Cloud-Temple/graph-memory](https://github.com/Cloud-Temple/graph-memory) |
+| Project          | Description                              | Link                                                                                 |
+| ---------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| **graph-memory** | Long-term memory (Knowledge Graph + RAG) | [github.com/Cloud-Temple/graph-memory](https://github.com/Cloud-Temple/graph-memory) |
 
 ---
 
@@ -685,4 +685,4 @@ Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v1.0.0 — Shared working memory for collaborative AI agents*
+*Live Memory v1.1.0 — Shared working memory for collaborative AI agents*

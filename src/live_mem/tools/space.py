@@ -39,7 +39,7 @@ def register(mcp: FastMCP) -> int:
     async def space_create(
         space_id: Annotated[str, Field(description="Identifiant unique de l'espace (alphanum + tirets, max 64 chars)")],
         description: Annotated[str, Field(description="Description courte de l'espace")],
-        rules: Annotated[str, Field(description="Contenu Markdown des rules définissant la structure de la Memory Bank")],
+        rules: Annotated[str, Field(default="", description="Contenu Markdown des rules définissant la structure de la Memory Bank. Si vide, utilise les rules par défaut (DEFAULT_RULES_FILE)")] = "",
         owner: Annotated[str, Field(default="", description="Propriétaire de l'espace (optionnel, informatif)")] = "",
     ) -> dict:
         """
@@ -48,16 +48,21 @@ def register(mcp: FastMCP) -> int:
         Les rules définissent la structure de la Memory Bank (quels fichiers,
         quel contenu). Elles sont immuables après création.
 
+        Si rules est vide, le serveur charge les rules par défaut depuis
+        le fichier configuré dans DEFAULT_RULES_FILE (.env).
+
         Args:
             space_id: Identifiant unique (alphanum + tirets, max 64 chars)
             description: Description courte de l'espace
-            rules: Contenu Markdown des rules (structure de la bank)
+            rules: Contenu Markdown des rules (vide = rules par défaut)
             owner: Propriétaire (optionnel, informatif)
 
         Returns:
             Détails de l'espace créé
         """
+        from pathlib import Path
         from ..auth.context import check_write_permission, current_token_info
+        from ..config import get_settings
         from ..core.space import get_space_service
         from ..core.tokens import get_token_service
 
@@ -67,10 +72,32 @@ def register(mcp: FastMCP) -> int:
             if write_err:
                 return write_err
 
+            # Si rules vide, charger les rules par défaut
+            effective_rules = rules
+            if not effective_rules.strip():
+                settings = get_settings()
+                if settings.default_rules_file:
+                    rules_path = Path(settings.default_rules_file)
+                    if rules_path.is_file():
+                        effective_rules = rules_path.read_text(encoding="utf-8")
+                    else:
+                        return {
+                            "status": "error",
+                            "message": f"Fichier de rules par défaut introuvable : {settings.default_rules_file}",
+                        }
+                else:
+                    return {
+                        "status": "error",
+                        "message": (
+                            "Paramètre 'rules' requis. "
+                            "Aucun fichier de rules par défaut configuré (DEFAULT_RULES_FILE)."
+                        ),
+                    }
+
             result = await get_space_service().create(
                 space_id=space_id,
                 description=description,
-                rules=rules,
+                rules=effective_rules,
                 owner=owner,
             )
 

@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Code source — copié directement avec les bons droits
 COPY --chown=mcp:mcp src/ src/
 COPY --chown=mcp:mcp scripts/ scripts/
+COPY --chown=mcp:mcp RULES/ RULES/
 COPY --chown=mcp:mcp VERSION .
 
 # Le module live_mem est dans src/ → ajouter au PYTHONPATH

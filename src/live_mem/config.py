@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     llmaas_max_tokens: int = 100000
     llmaas_temperature: float = 0.3
 
+    # ─── Rules par défaut ─────────────────────────────────────
+    # Chemin vers le fichier Markdown utilisé comme rules par défaut
+    # quand space_create est appelé sans paramètre rules.
+    # Ex: RULES/live-mem.standard.memory.bank.md (relatif au CWD)
+    # ou /app/RULES/live-mem.standard.memory.bank.md (absolu dans Docker)
+    default_rules_file: str = ""
+
     # ─── Consolidation ────────────────────────────────────────
     consolidation_timeout: int = 600        # Timeout par appel LLM (secondes)
     consolidation_max_notes: int = 500      # Max notes traitées par consolidation
