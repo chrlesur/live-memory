@@ -149,6 +149,26 @@ def space_update_cmd(ctx, space_id, description, owner, jflag):
     _run_tool(ctx, "space_update", args, show_space_updated, jflag)
 
 
+@space_grp.command("update-rules")
+@click.argument("space_id")
+@click.option("--rules-file", "-f", required=True, type=click.Path(exists=True), help="Fichier Markdown des rules")
+@click.option("--json", "-j", "jflag", is_flag=True)
+@click.pass_context
+def space_update_rules_cmd(ctx, space_id, rules_file, jflag):
+    """📜 Met à jour les rules d'un espace (admin only).
+
+    \b
+    Exemples :
+      space update-rules mon-projet -f RULES/live-mem.standard.memory.bank.md
+    """
+    content = open(rules_file, "r", encoding="utf-8").read()
+    if not content.strip():
+        show_error("Le fichier de rules est vide.")
+        return
+    from .display import show_rules_updated
+    _run_tool(ctx, "space_update_rules", {"space_id": space_id, "rules": content}, show_rules_updated, jflag)
+
+
 @space_grp.command("list")
 @click.option("--json", "-j", "jflag", is_flag=True)
 @click.pass_context

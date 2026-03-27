@@ -670,6 +670,16 @@ async def suite_qualite(admin: MCPClient, url: str, do_cleanup: bool):
         except Exception as e:
             test_fail(tool, str(e))
 
+    # space_update_rules (admin only, v1.2.0)
+    try:
+        r = await admin.call_tool("space_update_rules", {
+            "space_id": QUALITE_SPACE,
+            "rules": "# Test Rules v1.2.0\n\nRules de test pour space_update_rules.",
+        })
+        test_pass("space_update_rules", f"OK ({r.get('rules_size', '?')} o)") if r.get("status") == "ok" else test_fail("space_update_rules", str(r))
+    except Exception as e:
+        test_fail("space_update_rules", str(e))
+
     # Live
     section("Qualité — Live")
     try:

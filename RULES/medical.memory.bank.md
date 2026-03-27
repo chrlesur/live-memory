@@ -1,4 +1,4 @@
-# Memory Bank Rules — Suivi Médical
+# Medical Memory Bank Rules — LIVE MEMORY v1.1.0
 
 ## Principe fondamental
 

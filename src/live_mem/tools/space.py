@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Outils MCP — Catégorie Space (8 outils).
+Outils MCP — Catégorie Space (9 outils).
 
 Gestion des espaces mémoire : créer, lister, inspecter, exporter, supprimer.
 
 Permissions :
-    - space_create  ✏️ (write)  — Crée un nouvel espace
-    - space_update  ✏️ (write)  — Met à jour description/owner
-    - space_list    🔑 (read)   — Liste les espaces accessibles
-    - space_info    🔑 (read)   — Infos détaillées d'un espace
-    - space_rules   🔑 (read)   — Lit les rules immuables
-    - space_summary 🔑 (read)   — Synthèse complète (rules + bank)
-    - space_export  🔑 (read)   — Export tar.gz en base64
-    - space_delete  👑 (admin)  — Supprime un espace (irréversible)
+    - space_create        ✏️ (write)  — Crée un nouvel espace
+    - space_update        ✏️ (write)  — Met à jour description/owner
+    - space_update_rules  👑 (admin)  — Met à jour les rules d'un espace
+    - space_list          🔑 (read)   — Liste les espaces accessibles
+    - space_info          🔑 (read)   — Infos détaillées d'un espace
+    - space_rules         🔑 (read)   — Lit les rules
+    - space_summary       🔑 (read)   — Synthèse complète (rules + bank)
+    - space_export        🔑 (read)   — Export tar.gz en base64
+    - space_delete        👑 (admin)  — Supprime un espace (irréversible)
 
 Chaque outil délègue au SpaceService (core/space.py) après vérification
 des permissions via les helpers auth/context.py.
@@ -26,13 +27,13 @@ from pydantic import Field
 
 def register(mcp: FastMCP) -> int:
     """
-    Enregistre les 8 outils space sur l'instance MCP.
+    Enregistre les 9 outils space sur l'instance MCP.
 
     Args:
         mcp: Instance FastMCP
 
     Returns:
-        Nombre d'outils enregistrés (8)
+        Nombre d'outils enregistrés (9)
     """
 
     @mcp.tool()
@@ -156,6 +157,48 @@ def register(mcp: FastMCP) -> int:
                 space_id=space_id,
                 description=description if description else None,
                 owner=owner if owner else None,
+            )
+        except Exception as e:
+            from ..auth.context import safe_error
+            return safe_error(e, "space")
+
+    @mcp.tool()
+    async def space_update_rules(
+        space_id: Annotated[str, Field(description="Identifiant de l'espace")],
+        rules: Annotated[str, Field(description="Nouveau contenu Markdown des rules")],
+    ) -> dict:
+        """
+        Met à jour les rules d'un espace (admin only).
+
+        ⚠️ Les rules sont normalement immuables après création.
+        Cet outil permet de les mettre à jour sans devoir
+        supprimer/recréer l'espace. Réservé aux administrateurs.
+
+        Cas d'usage : correction de rules, migration vers une
+        nouvelle version du template, ajout de règles de consolidation.
+
+        Args:
+            space_id: Identifiant de l'espace
+            rules: Nouveau contenu Markdown des rules
+
+        Returns:
+            Taille des nouvelles rules
+        """
+        from ..auth.context import check_access, check_admin_permission
+        from ..core.space import get_space_service
+
+        try:
+            access_err = check_access(space_id)
+            if access_err:
+                return access_err
+
+            admin_err = check_admin_permission()
+            if admin_err:
+                return admin_err
+
+            return await get_space_service().update_rules(
+                space_id=space_id,
+                rules=rules,
             )
         except Exception as e:
             from ..auth.context import safe_error
@@ -356,4 +399,4 @@ def register(mcp: FastMCP) -> int:
             from ..auth.context import safe_error
             return safe_error(e, "space")
 
-    return 8  # Nombre d'outils enregistrés
+    return 9  # Nombre d'outils enregistrés

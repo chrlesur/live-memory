@@ -181,6 +181,51 @@ class SpaceService:
             "owner": meta.get("owner", ""),
         }
 
+    async def update_rules(self, space_id: str, rules: str) -> dict:
+        """
+        Met à jour les rules d'un espace existant (admin only).
+
+        ⚠️ Les rules sont normalement immuables. Cet outil permet de les
+        mettre à jour sans devoir supprimer/recréer l'espace.
+
+        Opérations S3 : GET _meta.json (vérif existence) + PUT _rules.md
+
+        Args:
+            space_id: Identifiant de l'espace
+            rules: Nouveau contenu Markdown des rules
+
+        Returns:
+            {"status": "ok", "space_id": ..., "rules_size": N}
+        """
+        # Valider la taille
+        if len(rules) > MAX_RULES_SIZE:
+            return {
+                "status": "error",
+                "message": f"Rules trop longues ({len(rules)} chars, max {MAX_RULES_SIZE})",
+            }
+
+        if not rules.strip():
+            return {
+                "status": "error",
+                "message": "Le contenu des rules ne peut pas être vide",
+            }
+
+        storage = get_storage()
+
+        # Vérifier que l'espace existe
+        if not await storage.exists(f"{space_id}/_meta.json"):
+            return {"status": "not_found", "message": f"Espace '{space_id}' introuvable"}
+
+        # Écrire les nouvelles rules
+        await storage.put(f"{space_id}/_rules.md", rules)
+
+        return {
+            "status": "ok",
+            "space_id": space_id,
+            "rules_size": len(rules.encode("utf-8")),
+            "message": f"Rules mises à jour ({len(rules.encode('utf-8'))} octets)",
+        }
+
     async def list_spaces(self, allowed_space_ids: Optional[list[str]] = None) -> dict:
         """
         Liste tous les espaces accessibles.

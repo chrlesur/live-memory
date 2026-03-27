@@ -5,6 +5,22 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [1.2.0] — 2026-03-27
+
+### Ajouté
+- **Outil MCP `space_update_rules`** (38ème outil, admin only) : permet de mettre à jour les rules d'un espace sans le supprimer/recréer. Implémenté dans `core/space.py`, `tools/space.py`, CLI Click, shell interactif et affichage Rich.
+- **Template RULES v1.2.0** (`RULES/live-mem.standard.memory.bank.md`) : 3 nouvelles règles de consolidation anti-duplication :
+  - Règle 7 : "Mettre à jour, ne pas dupliquer" (remplace "Enrichir, ne pas écraser")
+  - Règle 9 : "Nettoyer l'obsolète" (retirer les items terminés des backlogs, corriger les métriques)
+  - Règle 10 : "Garder les fichiers concis" (activeContext < 8 KB, autres < 15 KB)
+- Limites de taille dans les descriptions de fichiers bank : taille cible pour `activeContext.md`, instruction de remplacement pour `systemPatterns.md`, items terminés à retirer dans `progress.md`.
+
+### Modifié
+- Catégorie Space : 8 → 9 outils MCP.
+- Règle de consolidation n°1 nuancée : "Ne jamais perdre d'information **pertinente**" — les données obsolètes, remplacées ou dupliquées DOIVENT être nettoyées.
+
+---
+
 ## [1.1.0] — 2026-03-26
 
 ### Ajouté

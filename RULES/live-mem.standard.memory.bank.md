@@ -1,4 +1,4 @@
-# Memory Bank Rules — Standard Cline
+# Standard Memory Bank Rules — LIVE MEMORY v1.2.0
 
 ## Principe fondamental
 
@@ -54,6 +54,7 @@ projectbrief.md (fondation)
 - IMPORTANT : ce fichier doit refléter l'ÉTAT ACTUEL, pas l'historique complet
 - Les éléments terminés doivent être déplacés vers progress.md
 - C'est le PREMIER fichier qu'un agent lit pour reprendre le travail
+- **Taille cible : < 8 KB** — au-delà, c'est un signal d'inflation ; déplacer l'historique vers progress.md
 
 ### systemPatterns.md
 **Architecture et patterns techniques du projet.**
@@ -64,6 +65,7 @@ projectbrief.md (fondation)
 - Chemins d'implémentation critiques
 - Conventions de code, standards et bonnes pratiques
 - Ce fichier capture les DÉCISIONS structurantes, pas les détails d'implémentation
+- **Quand un pattern évolue** (ex: migration d'architecture), REMPLACER la section existante — ne pas garder l'ancienne version
 
 ### techContext.md
 **Stack technique et environnement de développement.**
@@ -78,10 +80,10 @@ projectbrief.md (fondation)
 ### progress.md
 **Journal d'avancement — s'enrichit au fil du temps.**
 - Ce qui fonctionne (par version ou milestone), avec dates
-- Ce qui reste à construire (roadmap, backlog)
+- Ce qui reste à construire (roadmap, backlog) — **retirer les items terminés**
 - Statut global du projet (vert/jaune/rouge)
 - Problèmes connus et contournements documentés
-- Métriques clés (lignes de code, tests, couverture, outils MCP)
+- Métriques clés (lignes de code, tests, couverture, outils MCP) — **toujours à jour**
 - Évolution chronologique des décisions du projet
 - Ce fichier est le SEUL qui contient l'historique complet
 
@@ -140,11 +142,13 @@ La bank doit être mise à jour (via consolidation) :
 - `question` → `activeContext.md` (décisions en cours)
 
 ### Règles de consolidation
-1. **Ne jamais perdre d'information** — toute note doit être reflétée quelque part dans la bank
+1. **Ne jamais perdre d'information pertinente** — toute note doit être reflétée quelque part dans la bank. Les données obsolètes, remplacées ou dupliquées DOIVENT être nettoyées.
 2. **activeContext.md est le point d'entrée** — c'est le premier fichier qu'un agent lit au démarrage
 3. **Synthétiser, ne pas copier** — regrouper les notes similaires en paragraphes cohérents et lisibles
 4. **Maintenir la chronologie dans progress.md** — grouper par version/milestone avec dates
 5. **projectbrief.md est quasi-immuable** — ne le modifier que si une note change fondamentalement la vision du projet
 6. **Nettoyer activeContext.md** — déplacer les éléments terminés vers progress.md pour garder le focus actuel léger
-7. **Enrichir, ne pas écraser** — lors d'une mise à jour, enrichir le contenu existant plutôt que le remplacer
+7. **Mettre à jour, ne pas dupliquer** — si une section existe déjà sur le même sujet, la REMPLACER avec le contenu actualisé. Ne jamais créer de doublon de section.
 8. **Respecter la hiérarchie** — les informations doivent être dans le fichier approprié selon la hiérarchie définie
+9. **Nettoyer l'obsolète** — retirer les items terminés des backlogs ("Ce Qui Reste à Construire"), corriger les métriques quand elles évoluent, supprimer les sections remplacées par de nouvelles versions
+10. **Garder les fichiers concis** — activeContext.md < 8 KB, les autres fichiers < 15 KB. Au-delà, synthétiser ou archiver dans progress.md

@@ -179,6 +179,15 @@ def show_space_updated(result: dict):
     console.print(Panel(panel_content, title="✏️ Espace mis à jour", border_style="green"))
 
 
+def show_rules_updated(result: dict):
+    """Affiche le résultat d'une mise à jour de rules."""
+    panel_content = (
+        f"[bold]{result.get('space_id', '?')}[/bold]\n"
+        f"Taille : {result.get('rules_size', '?')} octets"
+    )
+    console.print(Panel(panel_content, title="📜 Rules mises à jour", border_style="green"))
+
+
 def show_space_list(result: dict):
     """Affiche la liste des espaces."""
     spaces = result.get("spaces", [])

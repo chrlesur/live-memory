@@ -1,4 +1,4 @@
-# Memory Bank Rules — Écriture de Livre
+# BookWriter Memory Bank Rules — LIVE MEMORY v1.1.0
 
 ## Principe fondamental
 

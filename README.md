@@ -2,7 +2,7 @@
 
 > **Mémoire de travail partagée pour agents IA collaboratifs**
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -119,7 +119,7 @@ Concrètement, les agents peuvent :
                        │
           ┌────────────┴───────────────────┐
           │   Live Memory MCP (:8002)      │
-          │   37 outils • Auth Bearer      │
+          │   38 outils • Auth Bearer      │
           │   Consolidation LLM            │
           └──────┬──────────┬──────┬───────┘
                  │          │      │
@@ -259,7 +259,7 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 
 ## 🔧 Outils MCP
 
-37 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
+38 outils exposés via le protocole MCP (Streamable HTTP), répartis en 7 catégories.
 
 ### System (3 outils)
 
@@ -269,13 +269,14 @@ docker compose logs -f live-mem-service --tail 50  # Logs
 | `system_whoami` | —          | 👤 Identité du token courant (nom, permissions, espaces) |
 | `system_about`  | —          | Identité du service (version, outils, capacités)          |
 
-### Space (8 outils)
+### Space (9 outils)
 
-| Outil           | Paramètres                                   | Description                                                |
-| --------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| `space_create`  | `space_id`, `description`, `rules`, `owner?` | Crée un espace avec ses rules (structure de la bank)       |
-| `space_update`  | `space_id`, `description?`, `owner?`         | Met à jour la description et/ou le owner (rules immuables) |
-| `space_list`    | —                                            | Liste les espaces accessibles par le token courant         |
+| Outil                | Paramètres                                   | Description                                                |
+| -------------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| `space_create`       | `space_id`, `description`, `rules`, `owner?` | Crée un espace avec ses rules (structure de la bank)       |
+| `space_update`       | `space_id`, `description?`, `owner?`         | Met à jour la description et/ou le owner                   |
+| `space_update_rules` | `space_id`, `rules`                          | 📜 Met à jour les rules d'un espace (admin only)          |
+| `space_list`         | —                                            | Liste les espaces accessibles par le token courant         |
 | `space_info`    | `space_id`                                   | Infos détaillées (notes, bank, consolidation)              |
 | `space_rules`   | `space_id`                                   | Lit les rules immuables de l'espace                        |
 | `space_summary` | `space_id`                                   | Synthèse complète : rules + bank + stats (démarrage agent) |
@@ -578,7 +579,7 @@ Voir [scripts/README.md](scripts/README.md) pour le détail complet.
 
 ```
 live-memory/
-├── src/live_mem/              # Code source (37 outils MCP + interface web)
+├── src/live_mem/              # Code source (38 outils MCP + interface web)
 │   ├── server.py              # Serveur FastMCP + middlewares
 │   ├── config.py              # Configuration pydantic-settings
 │   ├── auth/                  # Authentification
@@ -602,7 +603,7 @@ live-memory/
 │   │   └── models.py          #   Modèles Pydantic
 │   └── tools/                 # Outils MCP (7 modules, 57 params documentés)
 │       ├── system.py          #   3 outils (health, whoami, about)
-│       ├── space.py           #   8 outils (CRUD espaces) — 13 params
+│       ├── space.py           #   9 outils (CRUD espaces) — 15 params
 │       ├── live.py            #   3 outils (notes) — 13 params
 │       ├── bank.py            #   7 outils (bank + consolidation + admin) — 10 params
 │       ├── graph.py           #   4 outils (Graph Bridge) — 8 params
@@ -626,7 +627,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 1.1.0
+├── VERSION                    # 1.2.0
 ├── CHANGELOG.md
 └── FAQ.md                     # 20 questions/réponses
 ```
@@ -689,4 +690,4 @@ Développé par **Christophe Lesur**.
 
 ---
 
-*Live Memory v1.1.0 — Mémoire de travail partagée pour agents IA collaboratifs*
+*Live Memory v1.2.0 — Mémoire de travail partagée pour agents IA collaboratifs*

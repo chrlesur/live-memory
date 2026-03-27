@@ -1,4 +1,4 @@
-# Memory Bank Rules — Analyse de Propositions Commerciales (Presales)
+# Presales Memory Bank Rules — LIVE MEMORY v1.1.0
 
 ## Principe fondamental
 

@@ -19,7 +19,7 @@ from .client import MCPClient
 from .display import (
     console, show_error, show_success, show_warning, show_json,
     show_health_result, show_whoami_result, show_about_result,
-    show_space_created, show_space_updated, show_space_list, show_space_info, show_rules, show_notes,
+    show_space_created, show_space_updated, show_rules_updated, show_space_list, show_space_info, show_rules, show_notes,
     show_bank_list, show_bank_content, show_consolidation_result,
     show_bank_write_result, show_bank_delete_result, show_bank_repair_result,
     show_graph_connected, show_graph_status, show_graph_push_result, show_graph_disconnected,
@@ -39,6 +39,7 @@ SHELL_COMMANDS = {
     "about": "Informations sur le service",
     "space create": "Créer un espace (space create <id> -d \"desc\" -r <rules.md> [-o owner])",
     "space update": "Modifier description/owner (space update <id> -d \"desc\" [-o \"owner\"])",
+    "space update-rules": "Mettre à jour les rules (space update-rules <id> -f <rules.md>) admin",
     "space list": "Lister les espaces",
     "space info": "Infos d'un espace (space info <id>)",
     "space rules": "Rules d'un espace (space rules <id>)",
@@ -264,6 +265,23 @@ async def _handle_space(client, args, json_out):
         else:
             show_error(result.get("message", "Erreur"))
         return
+
+    elif sub == "update-rules" and len(args) >= 2:
+        space_id = args[1]
+        rules_file = ""
+        for i, a in enumerate(args):
+            if a in ("-f", "--rules-file") and i + 1 < len(args):
+                rules_file = args[i + 1]
+        if not rules_file:
+            console.print("[yellow]Usage : space update-rules <space_id> -f <rules.md>[/yellow]")
+            return
+        try:
+            rules_content = Path(rules_file).read_text(encoding="utf-8")
+        except Exception as e:
+            show_error(f"Impossible de lire {rules_file}: {e}")
+            return
+        result = await client.call_tool("space_update_rules", {"space_id": space_id, "rules": rules_content})
+        (show_json if json_out else show_rules_updated)(result) if result.get("status") == "ok" else show_error(result.get("message", "?"))
 
     elif sub == "list":
         result = await client.call_tool("space_list", {})
