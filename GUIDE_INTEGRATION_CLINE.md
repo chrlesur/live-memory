@@ -1,6 +1,6 @@
 # 🔌 Guide d'intégration Live Memory avec Cline (VS Code / VSCodium)
 
-> **Version** : 0.9.0 | **Date** : 2026-03-19
+> **Version** : 1.2.0 | **Date** : 2026-03-27
 
 Ce guide détaille pas à pas comment connecter **Cline** (l'agent IA dans VS Code ou VSCodium) à **Live Memory** pour lui donner une mémoire de travail partagée et persistante.
 
@@ -133,7 +133,7 @@ Après avoir sauvegardé le fichier de config :
 1. **Redémarrez Cline** (ou rechargez VS Code avec `Ctrl+Shift+P` → "Developer: Reload Window")
 2. Dans le panneau Cline, cliquez sur l'onglet **MCP** 
 3. Vous devriez voir **"live-memory"** avec un indicateur vert ✅
-4. Cliquez dessus pour voir les **37 outils** disponibles
+4. Cliquez dessus pour voir les **38 outils** disponibles
 
 ### 3.5 Serveur distant (production)
 
@@ -472,7 +472,7 @@ La configuration est similaire. Éditez le fichier `claude_desktop_config.json` 
 }
 ```
 
-Redémarrez Claude Desktop après la modification. Les 37 outils Live Memory apparaîtront dans la liste des outils disponibles.
+Redémarrez Claude Desktop après la modification. Les 38 outils Live Memory apparaîtront dans la liste des outils disponibles.
 
 ---
 
@@ -489,4 +489,4 @@ Redémarrez Claude Desktop après la modification. Les 37 outils Live Memory app
 
 ---
 
-*Guide d'intégration Live Memory v0.9.0 — [Documentation complète](README.md)*
+*Guide d'intégration Live Memory v1.2.0 — [Documentation complète](README.md)*
