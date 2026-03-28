@@ -2,7 +2,7 @@
 
 > **Shared working memory for collaborative AI agents**
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)]()
 [![MCP](https://img.shields.io/badge/protocol-MCP-purple.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
@@ -635,7 +635,7 @@ live-memory/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── VERSION                    # 1.2.0
+├── VERSION                    # 1.3.0
 ├── CHANGELOG.md
 └── FAQ.md
 ```
@@ -686,4 +686,4 @@ Developed by **Christophe Lesur**.
 
 ---
 
-*Live Memory v1.2.0 — Shared working memory for collaborative AI agents*
+*Live Memory v1.3.0 — Shared working memory for collaborative AI agents*

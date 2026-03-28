@@ -5,6 +5,23 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [1.3.0] — 2026-03-28
+
+### Ajouté
+- **Fix anti-doublons consolidateur** (3 niveaux de protection) :
+  - **Fix A — Prévention** : `_op_add_section()` vérifie si le heading existe déjà et convertit automatiquement en `replace_section` avec WARNING dans les logs. Empêche la création de doublons à la source.
+  - **Fix B — Détection + Fusion LLM** : nouvelles méthodes `_deduplicate_content()` et `_merge_sections_via_llm()` dans `ConsolidatorService`. Après chaque action `edit` ou `rewrite`, détecte les sections dupliquées et les fusionne intelligemment via un appel LLM dédié (prompt court, température 0.1). Fallback mécanique (garder la dernière occurrence) si le LLM échoue.
+  - **Fix C — Guidance LLM** : instruction explicite dans le `SYSTEM_PROMPT` interdisant `add_section` sur un heading déjà existant.
+- Fonction utilitaire `_detect_duplicates()` : détecte les headings dupliqués dans un fichier Markdown.
+
+### Modifié
+- `test_recette.py` : mise à jour des références de version v0.7.5 → v1.2.0, 32/33 → 38 outils MCP.
+
+### Corrigé
+- **Bug récurrent de doublons de sections** dans les Memory Banks : les sections comme "État technique V2" ou les phases dans `progress.md` pouvaient être dupliquées par le consolidateur LLM lors d'opérations `add_section` sur des headings existants. Le bug était auto-renforçant (les doublons dans la bank étaient reproduits par le LLM lors des consolidations suivantes).
+
+---
+
 ## [1.2.0] — 2026-03-27
 
 ### Ajouté

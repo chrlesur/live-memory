@@ -74,6 +74,8 @@ Tout ce que tu ne touches pas explicitement reste INTACT — c'est le but.
 
 4. **add_section** — Crée une nouvelle section (heading + contenu) à la fin du fichier
    Ou après une section spécifique si "after" est fourni.
+   ⚠️ N'utilise JAMAIS add_section pour une section qui EXISTE DÉJÀ — utilise replace_section à la place.
+   Si tu utilises add_section avec un heading déjà présent, il sera automatiquement converti en replace_section.
 
 5. **delete_section** — Supprime une section entière (heading + contenu)
 
@@ -650,6 +652,11 @@ Retourne un JSON avec cette structure exacte :
                 content = file_edit.get("content", "")
                 reason = file_edit.get("reason", "non spécifiée")
                 if content:
+                    # Déduplication défensive via LLM : le LLM peut produire
+                    # un rewrite avec des sections déjà dupliquées
+                    content, dedup_count = await self._deduplicate_content(
+                        content, filename
+                    )
                     await storage.put(f"{space_id}/bank/{filename}", content)
                     await _cleanup_unicode_duplicates(filename)
                     files_updated += 1
@@ -688,6 +695,13 @@ Retourne un JSON avec cette structure exacte :
                             str(e),
                         )
                         operations_failed += 1
+
+                # Déduplication défensive post-opérations via LLM :
+                # rattrape les doublons résiduels que les opérations
+                # n'ont pas pu corriger (ex: doublons pré-existants)
+                updated_content, dedup_count = await self._deduplicate_content(
+                    updated_content, filename
+                )
 
                 # Écrire seulement si le contenu a changé
                 if updated_content != existing_content:
@@ -750,6 +764,134 @@ Retourne un JSON avec cette structure exacte :
             "llm_prompt_tokens": usage.get("prompt_tokens", 0),
             "llm_completion_tokens": usage.get("completion_tokens", 0),
         }
+
+    async def _deduplicate_content(self, content: str, filename: str) -> tuple[str, int]:
+        """
+        Détecte et fusionne les sections dupliquées via le LLM.
+
+        Pour chaque heading dupliqué, envoie les N versions au LLM avec un
+        prompt de fusion, et remplace toutes les occurrences par la version
+        fusionnée unique.
+
+        Args:
+            content: Contenu Markdown du fichier
+            filename: Nom du fichier (pour les logs)
+
+        Returns:
+            Tuple (contenu dédupliqué, nombre de doublons fusionnés)
+        """
+        duplicates = _detect_duplicates(content)
+        if not duplicates:
+            return content, 0
+
+        sections = _parse_sections(content)
+        total_merged = 0
+
+        for heading, indices in duplicates.items():
+            # Extraire le contenu de chaque version dupliquée
+            versions = [sections[i]["content"] for i in indices]
+
+            logger.warning(
+                "DEDUP %s: heading '%s' trouvé %d fois — fusion via LLM",
+                filename, heading, len(indices),
+            )
+
+            # Appeler le LLM pour fusionner
+            merged = await self._merge_sections_via_llm(heading, versions)
+
+            if merged is not None:
+                # Garder la DERNIÈRE occurrence, supprimer les précédentes
+                last_idx = indices[-1]
+                sections[last_idx]["content"] = (
+                    "\n" + merged + "\n" if not merged.startswith("\n") else merged
+                )
+
+                # Supprimer les occurrences précédentes (en partant de la fin)
+                for idx in reversed(indices[:-1]):
+                    sections.pop(idx)
+                    total_merged += 1
+
+                # Recalculer les indices car on a modifié la liste
+                # (les indices suivants se sont décalés)
+                sections = _parse_sections(
+                    _reconstruct_from_sections(sections)
+                )
+            else:
+                # Fallback si le LLM échoue : garder la dernière occurrence
+                logger.error(
+                    "DEDUP %s: fusion LLM échouée pour '%s' — "
+                    "fallback: conservation de la dernière occurrence",
+                    filename, heading,
+                )
+                for idx in reversed(indices[:-1]):
+                    sections.pop(idx)
+                    total_merged += 1
+                sections = _parse_sections(
+                    _reconstruct_from_sections(sections)
+                )
+
+        return _reconstruct_from_sections(sections), total_merged
+
+    async def _merge_sections_via_llm(
+        self, heading: str, versions: list[str]
+    ) -> str | None:
+        """
+        Appelle le LLM pour fusionner N versions d'une même section.
+
+        Prompt court et ciblé : le LLM reçoit les versions et doit
+        retourner une seule version fusionnée, sans perte d'information
+        pertinente et sans duplication.
+
+        Args:
+            heading: Le heading Markdown de la section (ex: "### État technique V2")
+            versions: Liste des contenus des différentes versions
+
+        Returns:
+            Contenu fusionné, ou None si l'appel LLM échoue
+        """
+        versions_text = ""
+        for i, v in enumerate(versions, 1):
+            versions_text += f"\n--- VERSION {i} ---\n{v.strip()}\n"
+
+        prompt = f"""Tu reçois {len(versions)} versions d'une même section Markdown qui a été dupliquée par erreur.
+
+SECTION : {heading}
+
+{versions_text}
+
+CONSIGNE : Fusionne ces versions en UNE SEULE version cohérente.
+- Garde toutes les informations PERTINENTES et À JOUR des deux versions
+- Si une version contient des données plus récentes (ex: "322 tests" vs "272 tests"), garde la plus récente
+- Supprime les doublons d'information
+- Conserve le format et le style Markdown
+- Retourne UNIQUEMENT le contenu fusionné (SANS le heading, SANS balises, SANS explication)"""
+
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[{"role": "user", "content": prompt}],  # type: ignore[list-item]
+                max_tokens=4096,
+                temperature=0.1,  # Basse température pour la fusion
+            )
+
+            merged = response.choices[0].message.content or ""
+
+            # Nettoyer : retirer les blocs <think> et les backticks
+            merged = re.sub(r"<think>.*?</think>", "", merged, flags=re.DOTALL)
+            merged = re.sub(r"^```(?:markdown)?\s*", "", merged.strip())
+            merged = re.sub(r"\s*```$", "", merged.strip())
+
+            logger.info(
+                "DEDUP merge OK: '%s' — %d versions → 1 (%d chars)",
+                heading, len(versions), len(merged),
+            )
+            return merged
+
+        except Exception as e:
+            logger.error(
+                "DEDUP merge FAILED: '%s' — %s", heading, str(e)
+            )
+            return None
 
     async def test_connection(self) -> dict:
         """Teste la connexion au LLMaaS avec un appel minimal."""
@@ -1118,8 +1260,22 @@ def _op_add_section(
 
     Si 'after' est spécifié, insère après cette section.
     Sinon, ajoute à la fin du fichier.
+
+    GARDE-FOU ANTI-DOUBLON (v1.3.0) : si une section avec le même
+    heading existe déjà, l'opération est automatiquement convertie
+    en replace_section pour éviter les doublons récurrents.
     """
     sections = _parse_sections(content)
+
+    # ── GARDE-FOU : vérifier si le heading existe déjà ────
+    existing_idx = _find_section_index(sections, heading)
+    if existing_idx != -1:
+        logger.warning(
+            "add_section '%s' AUTO-CONVERTI en replace_section "
+            "(section déjà existante à l'index %d)",
+            heading, existing_idx,
+        )
+        return _op_replace_section(content, heading, new_content)
 
     # Déterminer le niveau du heading
     heading_match = re.match(r"^(#{1,6})\s+(.+)$", heading.strip())
@@ -1155,6 +1311,29 @@ def _op_add_section(
         sections.append(new_section)
 
     return _reconstruct_from_sections(sections)
+
+
+def _detect_duplicates(content: str) -> dict[str, list[int]]:
+    """
+    Détecte les sections dupliquées dans un fichier Markdown.
+
+    Returns:
+        Dict heading → [index1, index2, ...] pour les headings qui
+        apparaissent plus d'une fois. Vide si pas de doublons.
+    """
+    sections = _parse_sections(content)
+
+    # Compter les occurrences de chaque heading exact
+    heading_indices: dict[str, list[int]] = {}
+    for i, sec in enumerate(sections):
+        h = sec["heading"].strip()
+        if h:  # Ignorer le préambule (heading vide)
+            if h not in heading_indices:
+                heading_indices[h] = []
+            heading_indices[h].append(i)
+
+    # Ne garder que les headings dupliqués
+    return {h: indices for h, indices in heading_indices.items() if len(indices) > 1}
 
 
 def _op_delete_section(content: str, heading: str) -> str:

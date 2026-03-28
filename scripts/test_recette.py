@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Script de recette global — Live Memory v0.7.5
+Script de recette global — Live Memory v1.2.0
 
 Script unifié avec sélection de suites par ligne de commande.
 
 Suites disponibles :
     - recette    : Pipeline complet (agent → notes → consolidation → bank)
     - isolation  : Tests d'isolation multi-tenant (v0.7.1)
-    - qualite    : Tests de qualité (32 outils MCP)
+    - qualite    : Tests de qualité (38 outils MCP)
 
 Usage :
     python scripts/test_recette.py                         # TOUTES les suites
@@ -577,7 +577,7 @@ async def suite_isolation(admin: MCPClient, url: str, do_cleanup: bool):
 
 # ═══════════════════════════════════════════════════════════════
 #
-#  SUITE : QUALITE — Tests des 33 outils MCP
+#  SUITE : QUALITE — Tests des 38 outils MCP
 #
 # ═══════════════════════════════════════════════════════════════
 
@@ -1025,7 +1025,7 @@ async def run_all(url: str, bootstrap_key: str, suites_to_run: list, do_cleanup:
     admin = MCPClient(base_url=url, token=bootstrap_key, timeout=600, call_delay=CALL_DELAY)
     t0 = time.monotonic()
 
-    header(f"🏗️  RECETTE GLOBALE — Live Memory v0.7.5")
+    header(f"🏗️  RECETTE GLOBALE — Live Memory v1.2.0")
     print(f"  {C}Serveur :{Z} {url}")
     print(f"  {C}Suites  :{Z} {', '.join(suites_to_run)}")
 
@@ -1082,7 +1082,7 @@ def main():
     global VERBOSE, STEP_MODE
 
     ap = argparse.ArgumentParser(
-        description="Recette globale — Live Memory v0.7.5",
+        description="Recette globale — Live Memory v1.2.0",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemples :
