@@ -5,6 +5,17 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [1.3.1] — 2026-04-01
+
+### Corrigé
+- **Bug `IndexError: list index out of range` dans `_deduplicate_content()`** — La méthode de déduplication des sections dupliquées crashait quand un fichier bank contenait **plusieurs headings dupliqués différents** (ex: 5 doublons dans `activeContext.md`). La cause : les indices des doublons étaient calculés une seule fois au début (`_detect_duplicates`), puis utilisés dans une boucle `for` qui modifiait la liste de sections (`pop()`). Après le traitement du premier doublon, les indices des doublons suivants pointaient vers des positions invalides dans la liste raccourcie → `IndexError`.
+- **Fix** : remplacement de la boucle `for` par une boucle `while` qui **re-détecte les doublons** sur le contenu mis à jour à chaque itération. Chaque itération ne traite qu'un seul doublon, reconstruisant le contenu entre chaque fusion. Sécurité anti-boucle infinie (max 50 itérations) et vérification défensive des indices avant accès.
+
+### Ajouté
+- **Script de test `scripts/test_dedup_fix.py`** — 17 tests unitaires reproduisant le bug exact (5 doublons simultanés, heading triplé, fichier sans doublons) et validant le nouveau comportement. Confirme que l'ancien algorithme crashe et que le nouveau fonctionne sans perte de contenu.
+
+---
+
 ## [1.3.0] — 2026-03-28
 
 ### Ajouté

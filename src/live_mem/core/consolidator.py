@@ -769,9 +769,10 @@ Retourne un JSON avec cette structure exacte :
         """
         Détecte et fusionne les sections dupliquées via le LLM.
 
-        Pour chaque heading dupliqué, envoie les N versions au LLM avec un
-        prompt de fusion, et remplace toutes les occurrences par la version
-        fusionnée unique.
+        Traite UN SEUL doublon par itération, puis re-détecte les doublons
+        restants sur le contenu mis à jour. Cela évite le bug d'indices
+        décalés (IndexError) qui survenait quand on utilisait les indices
+        de la détection initiale après avoir modifié la liste de sections.
 
         Args:
             content: Contenu Markdown du fichier
@@ -780,14 +781,28 @@ Retourne un JSON avec cette structure exacte :
         Returns:
             Tuple (contenu dédupliqué, nombre de doublons fusionnés)
         """
-        duplicates = _detect_duplicates(content)
-        if not duplicates:
-            return content, 0
-
-        sections = _parse_sections(content)
         total_merged = 0
+        max_iterations = 50  # Sécurité anti-boucle infinie
 
-        for heading, indices in duplicates.items():
+        for _ in range(max_iterations):
+            # Re-détecter les doublons sur le contenu ACTUEL à chaque itération
+            duplicates = _detect_duplicates(content)
+            if not duplicates:
+                break
+
+            # Traiter le PREMIER doublon trouvé
+            heading, indices = next(iter(duplicates.items()))
+            sections = _parse_sections(content)
+
+            # Vérifier que les indices sont valides (sécurité défensive)
+            if any(i >= len(sections) for i in indices):
+                logger.error(
+                    "DEDUP %s: indices invalides pour '%s' "
+                    "(max=%d, indices=%s) — skip",
+                    filename, heading, len(sections) - 1, indices,
+                )
+                break
+
             # Extraire le contenu de chaque version dupliquée
             versions = [sections[i]["content"] for i in indices]
 
@@ -810,12 +825,6 @@ Retourne un JSON avec cette structure exacte :
                 for idx in reversed(indices[:-1]):
                     sections.pop(idx)
                     total_merged += 1
-
-                # Recalculer les indices car on a modifié la liste
-                # (les indices suivants se sont décalés)
-                sections = _parse_sections(
-                    _reconstruct_from_sections(sections)
-                )
             else:
                 # Fallback si le LLM échoue : garder la dernière occurrence
                 logger.error(
@@ -826,11 +835,11 @@ Retourne un JSON avec cette structure exacte :
                 for idx in reversed(indices[:-1]):
                     sections.pop(idx)
                     total_merged += 1
-                sections = _parse_sections(
-                    _reconstruct_from_sections(sections)
-                )
 
-        return _reconstruct_from_sections(sections), total_merged
+            # Reconstruire le contenu pour la prochaine itération
+            content = _reconstruct_from_sections(sections)
+
+        return content, total_merged
 
     async def _merge_sections_via_llm(
         self, heading: str, versions: list[str]
